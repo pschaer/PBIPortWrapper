@@ -1,4 +1,7 @@
-﻿# Power BI Port Wrapper
+﻿[![GitHub release](https://img.shields.io/github/v/release/pschaer/PowerBIPortWrapper)](https://github.com/pschaer/PowerBIPortWrapper/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+# Power BI Port Wrapper
 
 A TCP port forwarding proxy for Power BI Desktop that provides stable port access for external tools like Excel, DAX Studio, and Tabular Editor.
 
