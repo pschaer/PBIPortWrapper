@@ -1,9 +1,9 @@
 ﻿using System;
 using System.IO;
 using Newtonsoft.Json;
-using PowerBIPortWrapper.Models;
+using PBIPortWrapper.Models;
 
-namespace PowerBIPortWrapper.Services
+namespace PBIPortWrapper.Services
 {
     public class ConfigurationManager
     {
@@ -15,7 +15,7 @@ namespace PowerBIPortWrapper.Services
         {
             _appDataPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PowerBIPortWrapper"
+                "PBIPortWrapper"
             );
 
             Directory.CreateDirectory(_appDataPath);

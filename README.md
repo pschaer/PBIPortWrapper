@@ -1,7 +1,7 @@
-﻿[![GitHub release](https://img.shields.io/github/v/release/pschaer/PowerBIPortWrapper)](https://github.com/pschaer/PowerBIPortWrapper/releases/latest)
+﻿[![GitHub release](https://img.shields.io/github/v/release/pschaer/PBIPortWrapper)](https://github.com/pschaer/PBIPortWrapper/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# Power BI Port Wrapper
+# PBI Port Wrapper
 
 A TCP port forwarding proxy for Power BI Desktop that provides stable port access for external tools like Excel, DAX Studio, and Tabular Editor.
 
@@ -12,7 +12,7 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 - Share connection information with team members
 - Automate workflows that depend on Power BI models
 
-**Power BI Port Wrapper** solves this by providing a stable, fixed port that forwards connections to the current Power BI Desktop instance.
+**PBI Port Wrapper** solves this by providing a stable, fixed port that forwards connections to the current Power BI Desktop instance.
 
 ## ✨ Features
 
@@ -34,7 +34,7 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 
 1. **Download** the latest release
 2. **Extract** the ZIP file
-3. **Run**```PowerBIPortWrapper.exe```
+3. **Run**```PBIPortWrapper.exe```
 4. **Start Power BI Desktop** and open a model
 5. **Click "Refresh"** to detect the running instance
 6. **Click "Start Port Forwarding"**
@@ -73,13 +73,13 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 To allow remote connections, run this PowerShell command as Administrator:
 
 ```powershell
-New-NetFirewallRule -DisplayName "Power BI Port Wrapper" -Direction Inbound -LocalPort 55555 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "PBI Port Wrapper" -Direction Inbound -LocalPort 55555 -Protocol TCP -Action Allow
 ```
 
 ## 📁 File Locations
 
-- **Configuration**: ```%APPDATA%\PowerBIPortWrapper\config.json```
-- **Logs**: ```%APPDATA%\PowerBIPortWrapper\log.txt```
+- **Configuration**: ```%APPDATA%\PBIPortWrapper\config.json```
+- **Logs**: ```%APPDATA%\PBIPortWrapper\log.txt```
 
 ## 🐛 Known Limitations (v0.1)
 

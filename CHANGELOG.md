@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Power BI Port Wrapper will be documented in this file.
+All notable changes to PBI Port Wrapper will be documented in this file.
 
 ## [0.1.0] - 2025-11-02
 

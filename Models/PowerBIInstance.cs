@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace PowerBIPortWrapper.Models
+namespace PBIPortWrapper.Models
 {
     public class PowerBIInstance
     {

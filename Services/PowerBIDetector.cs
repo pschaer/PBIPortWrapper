@@ -4,9 +4,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.AnalysisServices.AdomdClient;
-using PowerBIPortWrapper.Models;
+using PBIPortWrapper.Models;
 
-namespace PowerBIPortWrapper.Services
+namespace PBIPortWrapper.Services
 {
     public class PowerBIDetector
     {

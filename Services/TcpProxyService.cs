@@ -4,7 +4,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PowerBIPortWrapper.Services
+namespace PBIPortWrapper.Services
 {
     public class TcpProxyService : IDisposable
     {

@@ -1,4 +1,4 @@
-﻿namespace PowerBIPortWrapper
+﻿namespace PBIPortWrapper
 {
     partial class MainForm
     {
@@ -238,7 +238,7 @@
             MaximizeBox = false;
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Power BI Port Wrapper v0.1";
+            Text = "PBI Port Wrapper v0.1";
             groupBoxInstances.ResumeLayout(false);
             groupBoxConfig.ResumeLayout(false);
             groupBoxConfig.PerformLayout();

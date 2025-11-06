@@ -2,10 +2,10 @@
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using PowerBIPortWrapper.Models;
-using PowerBIPortWrapper.Services;
+using PBIPortWrapper.Models;
+using PBIPortWrapper.Services;
 
-namespace PowerBIPortWrapper
+namespace PBIPortWrapper
 {
     public partial class MainForm : Form
     {

@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace PowerBIPortWrapper
+namespace PBIPortWrapper
 {
     internal static class Program
     {
@@ -39,7 +39,7 @@ namespace PowerBIPortWrapper
 
             MessageBox.Show(
                 errorMessage,
-                "Power BI Port Wrapper - Error",
+                "PBI Port Wrapper - Error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );
@@ -49,7 +49,7 @@ namespace PowerBIPortWrapper
             {
                 string logPath = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "PowerBIPortWrapper",
+                    "PBIPortWrapper",
                     "crash.log"
                 );
 
