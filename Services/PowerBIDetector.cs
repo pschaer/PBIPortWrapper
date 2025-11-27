@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Management;
 using System.Text;
 using Microsoft.AnalysisServices.AdomdClient;
 using PBIPortWrapper.Models;
@@ -46,6 +48,7 @@ namespace PBIPortWrapper.Services
                             if (int.TryParse(portText, out int port))
                             {
                                 string databaseName = GetDatabaseName(port);
+                                var (processId, parentProcessId, friendlyName) = GetProcessInfo(workspaceDir);
 
                                 var instance = new PowerBIInstance
                                 {
@@ -54,7 +57,9 @@ namespace PBIPortWrapper.Services
                                     DatabaseName = databaseName,
                                     LastModified = Directory.GetLastWriteTime(workspaceDir),
                                     FilePath = workspaceDir,
-                                    FileName = GetFriendlyName(workspaceDir)
+                                    FileName = friendlyName ?? GetFriendlyNameFallback(workspaceDir),
+                                    ProcessId = processId,
+                                    ParentProcessId = parentProcessId
                                 };
 
                                 instances.Add(instance);
@@ -75,6 +80,66 @@ namespace PBIPortWrapper.Services
                 System.Diagnostics.Debug.WriteLine($"Error detecting instances: {ex.Message}");
                 return instances;
             }
+        }
+
+        private (int processId, int parentProcessId, string friendlyName) GetProcessInfo(string workspaceDir)
+        {
+            try
+            {
+                // Normalize path for comparison
+                string normalizedWorkspacePath = Path.GetFullPath(workspaceDir).TrimEnd(Path.DirectorySeparatorChar);
+
+                // Query WMI for msmdsrv.exe processes
+                string query = "SELECT ProcessId, ParentProcessId, CommandLine FROM Win32_Process WHERE Name = 'msmdsrv.exe'";
+                using (var searcher = new ManagementObjectSearcher(query))
+                using (var collection = searcher.Get())
+                {
+                    foreach (var process in collection)
+                    {
+                        string commandLine = process["CommandLine"]?.ToString();
+                        if (string.IsNullOrEmpty(commandLine)) continue;
+
+                        // Check if this msmdsrv instance is running from our workspace
+                        if (commandLine.IndexOf(normalizedWorkspacePath, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            int processId = Convert.ToInt32(process["ProcessId"]);
+                            int parentProcessId = Convert.ToInt32(process["ParentProcessId"]);
+                            string friendlyName = null;
+
+                            try
+                            {
+                                var parentProcess = Process.GetProcessById(parentProcessId);
+                                if (parentProcess.ProcessName.Equals("PBIDesktop", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    string title = parentProcess.MainWindowTitle;
+                                    // Title format is usually "Filename - Power BI Desktop"
+                                    int separatorIndex = title.LastIndexOf(" - Power BI Desktop");
+                                    if (separatorIndex > 0)
+                                    {
+                                        friendlyName = title.Substring(0, separatorIndex);
+                                    }
+                                    else
+                                    {
+                                        friendlyName = title;
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // Parent process might have exited or we can't access it
+                            }
+
+                            return (processId, parentProcessId, friendlyName);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting process info: {ex.Message}");
+            }
+
+            return (0, 0, null);
         }
 
         private string ReadPortFile(string portFile)
@@ -144,7 +209,7 @@ namespace PBIPortWrapper.Services
             return null;
         }
 
-        private string GetFriendlyName(string workspaceDir)
+        private string GetFriendlyNameFallback(string workspaceDir)
         {
             var dirName = Path.GetFileName(workspaceDir);
 

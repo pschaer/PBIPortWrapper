@@ -23,7 +23,7 @@ namespace PBIPortWrapper.Services
         public event EventHandler<string> OnLog;
         public event EventHandler<string> OnError;
 
-        public async Task StartAsync(int listenPort, int targetPort, bool allowRemote = false)
+        public async Task StartAsync(int listenPort, int targetPort, bool allowNetworkAccess)
         {
             if (_isRunning)
             {
@@ -37,7 +37,7 @@ namespace PBIPortWrapper.Services
 
             try
             {
-                var ipAddress = allowRemote ? IPAddress.Any : IPAddress.Loopback;
+                var ipAddress = allowNetworkAccess ? IPAddress.Any : IPAddress.Loopback;
 
                 _listener = new TcpListener(ipAddress, listenPort);
                 _listener.Start();
@@ -45,7 +45,7 @@ namespace PBIPortWrapper.Services
 
                 Log($"TCP Proxy started on port {listenPort}");
                 Log($"Forwarding to localhost:{targetPort}");
-                Log($"Network access: {(allowRemote ? "Enabled (accessible from network)" : "Disabled (localhost only)")}");
+                Log($"Network access: {(allowNetworkAccess ? "Enabled (accessible from network)" : "Disabled (localhost only)")}");
 
                 _ = Task.Run(() => AcceptClientsAsync(_cancellationTokenSource.Token));
             }

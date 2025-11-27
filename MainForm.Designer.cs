@@ -3,12 +3,12 @@
     partial class MainForm
     {
         /// <summary>
-        ///  Required designer variable.
+        /// Required designer variable.
         /// </summary>
         private System.ComponentModel.IContainer components = null;
 
         /// <summary>
-        ///  Clean up any resources being used.
+        /// Clean up any resources being used.
         /// </summary>
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
@@ -23,251 +23,214 @@
         #region Windows Form Designer generated code
 
         /// <summary>
-        ///  Required method for Designer support - do not modify
-        ///  the contents of this method with the code editor.
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
         /// </summary>
         private void InitializeComponent()
         {
-            groupBoxInstances = new GroupBox();
-            buttonRefresh = new Button();
-            listBoxInstances = new ListBox();
-            groupBoxConfig = new GroupBox();
-            checkBoxNetworkAccess = new CheckBox();
-            textBoxFixedPort = new TextBox();
-            labelFixedPort = new Label();
-            groupBoxConnectionInfo = new GroupBox();
-            buttonCopy = new Button();
-            textBoxConnectionString = new TextBox();
-            labelConnectionString = new Label();
-            labelStatus = new Label();
-            buttonStart = new Button();
-            buttonStop = new Button();
-            buttonOpenLogs = new Button();
-            groupBoxLog = new GroupBox();
-            textBoxLog = new TextBox();
-            groupBoxInstances.SuspendLayout();
-            groupBoxConfig.SuspendLayout();
-            groupBoxConnectionInfo.SuspendLayout();
-            groupBoxLog.SuspendLayout();
-            SuspendLayout();
+            this.components = new System.ComponentModel.Container();
+            System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
+            this.panelTop = new System.Windows.Forms.Panel();
+            this.buttonRefresh = new System.Windows.Forms.Button();
+            this.labelTitle = new System.Windows.Forms.Label();
+            this.panelBottom = new System.Windows.Forms.Panel();
+            this.buttonOpenLogs = new System.Windows.Forms.Button();
+            this.textBoxLog = new System.Windows.Forms.TextBox();
+            this.panelFill = new System.Windows.Forms.Panel();
+            this.dataGridViewInstances = new System.Windows.Forms.DataGridView();
+            this.timerUpdate = new System.Windows.Forms.Timer(this.components);
+            this.colModelName = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colPbiPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFixedPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colAuto = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.colNetwork = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.colStatus = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colAction = new System.Windows.Forms.DataGridViewButtonColumn();
+            this.panelTop.SuspendLayout();
+            this.panelBottom.SuspendLayout();
+            this.panelFill.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridViewInstances)).BeginInit();
+            this.SuspendLayout();
             // 
-            // groupBoxInstances
+            // panelTop
             // 
-            groupBoxInstances.Controls.Add(buttonRefresh);
-            groupBoxInstances.Controls.Add(listBoxInstances);
-            groupBoxInstances.Location = new Point(12, 12);
-            groupBoxInstances.Name = "groupBoxInstances";
-            groupBoxInstances.Size = new Size(560, 150);
-            groupBoxInstances.TabIndex = 0;
-            groupBoxInstances.TabStop = false;
-            groupBoxInstances.Text = "Power BI Instance Selection";
+            this.panelTop.Controls.Add(this.buttonRefresh);
+            this.panelTop.Controls.Add(this.labelTitle);
+            this.panelTop.Dock = System.Windows.Forms.DockStyle.Top;
+            this.panelTop.Location = new System.Drawing.Point(0, 0);
+            this.panelTop.Name = "panelTop";
+            this.panelTop.Size = new System.Drawing.Size(800, 60);
+            this.panelTop.TabIndex = 0;
             // 
             // buttonRefresh
             // 
-            buttonRefresh.Location = new Point(450, 115);
-            buttonRefresh.Name = "buttonRefresh";
-            buttonRefresh.Size = new Size(100, 25);
-            buttonRefresh.TabIndex = 1;
-            buttonRefresh.Text = "Refresh";
-            buttonRefresh.UseVisualStyleBackColor = true;
+            this.buttonRefresh.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonRefresh.Location = new System.Drawing.Point(697, 18);
+            this.buttonRefresh.Name = "buttonRefresh";
+            this.buttonRefresh.Size = new System.Drawing.Size(91, 28);
+            this.buttonRefresh.TabIndex = 1;
+            this.buttonRefresh.Text = "Refresh";
+            this.buttonRefresh.UseVisualStyleBackColor = true;
             // 
-            // listBoxInstances
+            // labelTitle
             // 
-            listBoxInstances.FormattingEnabled = true;
-            listBoxInstances.ItemHeight = 15;
-            listBoxInstances.Location = new Point(10, 25);
-            listBoxInstances.Name = "listBoxInstances";
-            listBoxInstances.Size = new Size(540, 79);
-            listBoxInstances.TabIndex = 0;
+            this.labelTitle.AutoSize = true;
+            this.labelTitle.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
+            this.labelTitle.Location = new System.Drawing.Point(12, 16);
+            this.labelTitle.Name = "labelTitle";
+            this.labelTitle.Size = new System.Drawing.Size(206, 25);
+            this.labelTitle.TabIndex = 0;
+            this.labelTitle.Text = "Power BI Port Wrapper";
             // 
-            // groupBoxConfig
+            // panelBottom
             // 
-            groupBoxConfig.Controls.Add(checkBoxNetworkAccess);
-            groupBoxConfig.Controls.Add(textBoxFixedPort);
-            groupBoxConfig.Controls.Add(labelFixedPort);
-            groupBoxConfig.Location = new Point(12, 170);
-            groupBoxConfig.Name = "groupBoxConfig";
-            groupBoxConfig.Size = new Size(270, 120);
-            groupBoxConfig.TabIndex = 1;
-            groupBoxConfig.TabStop = false;
-            groupBoxConfig.Text = "Port Forwarding Configuration";
-            // 
-            // checkBoxNetworkAccess
-            // 
-            checkBoxNetworkAccess.AutoSize = true;
-            checkBoxNetworkAccess.Location = new Point(15, 65);
-            checkBoxNetworkAccess.Name = "checkBoxNetworkAccess";
-            checkBoxNetworkAccess.Size = new Size(143, 19);
-            checkBoxNetworkAccess.TabIndex = 2;
-            checkBoxNetworkAccess.Text = "Allow Network Access";
-            checkBoxNetworkAccess.UseVisualStyleBackColor = true;
-            // 
-            // textBoxFixedPort
-            // 
-            textBoxFixedPort.Location = new Point(90, 30);
-            textBoxFixedPort.Name = "textBoxFixedPort";
-            textBoxFixedPort.Size = new Size(100, 23);
-            textBoxFixedPort.TabIndex = 1;
-            textBoxFixedPort.Text = "55555";
-            // 
-            // labelFixedPort
-            // 
-            labelFixedPort.AutoSize = true;
-            labelFixedPort.Location = new Point(15, 33);
-            labelFixedPort.Name = "labelFixedPort";
-            labelFixedPort.Size = new Size(67, 15);
-            labelFixedPort.TabIndex = 0;
-            labelFixedPort.Text = "Listen Port:";
-            // 
-            // groupBoxConnectionInfo
-            // 
-            groupBoxConnectionInfo.Controls.Add(buttonCopy);
-            groupBoxConnectionInfo.Controls.Add(textBoxConnectionString);
-            groupBoxConnectionInfo.Controls.Add(labelConnectionString);
-            groupBoxConnectionInfo.Location = new Point(290, 170);
-            groupBoxConnectionInfo.Name = "groupBoxConnectionInfo";
-            groupBoxConnectionInfo.Size = new Size(282, 120);
-            groupBoxConnectionInfo.TabIndex = 2;
-            groupBoxConnectionInfo.TabStop = false;
-            groupBoxConnectionInfo.Text = "Connection Information";
-            // 
-            // buttonCopy
-            // 
-            buttonCopy.Location = new Point(176, 80);
-            buttonCopy.Name = "buttonCopy";
-            buttonCopy.Size = new Size(90, 25);
-            buttonCopy.TabIndex = 2;
-            buttonCopy.Text = "Copy";
-            buttonCopy.UseVisualStyleBackColor = true;
-            // 
-            // textBoxConnectionString
-            // 
-            textBoxConnectionString.Location = new Point(15, 52);
-            textBoxConnectionString.Name = "textBoxConnectionString";
-            textBoxConnectionString.ReadOnly = true;
-            textBoxConnectionString.Size = new Size(251, 23);
-            textBoxConnectionString.TabIndex = 1;
-            textBoxConnectionString.Text = "localhost:55555";
-            // 
-            // labelConnectionString
-            // 
-            labelConnectionString.AutoSize = true;
-            labelConnectionString.Location = new Point(15, 30);
-            labelConnectionString.Name = "labelConnectionString";
-            labelConnectionString.Size = new Size(87, 15);
-            labelConnectionString.TabIndex = 0;
-            labelConnectionString.Text = "Server Address:";
-            // 
-            // labelStatus
-            // 
-            labelStatus.AutoSize = true;
-            labelStatus.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-            labelStatus.ForeColor = Color.Red;
-            labelStatus.Location = new Point(12, 300);
-            labelStatus.Name = "labelStatus";
-            labelStatus.Size = new Size(139, 19);
-            labelStatus.TabIndex = 3;
-            labelStatus.Text = "Status: Not Running";
-            // 
-            // buttonStart
-            // 
-            buttonStart.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            buttonStart.Location = new Point(12, 325);
-            buttonStart.Name = "buttonStart";
-            buttonStart.Size = new Size(150, 35);
-            buttonStart.TabIndex = 4;
-            buttonStart.Text = "Start Port Forwarding";
-            buttonStart.UseVisualStyleBackColor = true;
-            // 
-            // buttonStop
-            // 
-            buttonStop.Enabled = false;
-            buttonStop.Location = new Point(170, 325);
-            buttonStop.Name = "buttonStop";
-            buttonStop.Size = new Size(150, 35);
-            buttonStop.TabIndex = 5;
-            buttonStop.Text = "Stop";
-            buttonStop.UseVisualStyleBackColor = true;
+            this.panelBottom.Controls.Add(this.buttonOpenLogs);
+            this.panelBottom.Controls.Add(this.textBoxLog);
+            this.panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.panelBottom.Location = new System.Drawing.Point(0, 300);
+            this.panelBottom.Name = "panelBottom";
+            this.panelBottom.Size = new System.Drawing.Size(800, 150);
+            this.panelBottom.TabIndex = 1;
             // 
             // buttonOpenLogs
             // 
-            buttonOpenLogs.Location = new Point(328, 325);
-            buttonOpenLogs.Name = "buttonOpenLogs";
-            buttonOpenLogs.Size = new Size(120, 35);
-            buttonOpenLogs.TabIndex = 6;
-            buttonOpenLogs.Text = "Open Logs";
-            buttonOpenLogs.UseVisualStyleBackColor = true;
-            // 
-            // groupBoxLog
-            // 
-            groupBoxLog.Controls.Add(textBoxLog);
-            groupBoxLog.Location = new Point(12, 370);
-            groupBoxLog.Name = "groupBoxLog";
-            groupBoxLog.Size = new Size(560, 150);
-            groupBoxLog.TabIndex = 7;
-            groupBoxLog.TabStop = false;
-            groupBoxLog.Text = "Activity Log";
+            this.buttonOpenLogs.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonOpenLogs.Location = new System.Drawing.Point(697, 115);
+            this.buttonOpenLogs.Name = "buttonOpenLogs";
+            this.buttonOpenLogs.Size = new System.Drawing.Size(91, 23);
+            this.buttonOpenLogs.TabIndex = 1;
+            this.buttonOpenLogs.Text = "Open Logs";
+            this.buttonOpenLogs.UseVisualStyleBackColor = true;
             // 
             // textBoxLog
             // 
-            textBoxLog.BackColor = SystemColors.Window;
-            textBoxLog.Dock = DockStyle.Fill;
-            textBoxLog.Font = new Font("Consolas", 8.25F);
-            textBoxLog.Location = new Point(3, 19);
-            textBoxLog.Multiline = true;
-            textBoxLog.Name = "textBoxLog";
-            textBoxLog.ReadOnly = true;
-            textBoxLog.ScrollBars = ScrollBars.Vertical;
-            textBoxLog.Size = new Size(554, 128);
-            textBoxLog.TabIndex = 0;
+            this.textBoxLog.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxLog.BackColor = System.Drawing.Color.White;
+            this.textBoxLog.Font = new System.Drawing.Font("Consolas", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+            this.textBoxLog.Location = new System.Drawing.Point(12, 6);
+            this.textBoxLog.Multiline = true;
+            this.textBoxLog.Name = "textBoxLog";
+            this.textBoxLog.ReadOnly = true;
+            this.textBoxLog.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            this.textBoxLog.Size = new System.Drawing.Size(776, 103);
+            this.textBoxLog.TabIndex = 0;
+            // 
+            // panelFill
+            // 
+            this.panelFill.Controls.Add(this.dataGridViewInstances);
+            this.panelFill.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.panelFill.Location = new System.Drawing.Point(0, 60);
+            this.panelFill.Name = "panelFill";
+            this.panelFill.Padding = new System.Windows.Forms.Padding(12);
+            this.panelFill.Size = new System.Drawing.Size(800, 240);
+            this.panelFill.TabIndex = 2;
+            // 
+            // dataGridViewInstances
+            // 
+            this.dataGridViewInstances.AllowUserToAddRows = false;
+            this.dataGridViewInstances.AllowUserToDeleteRows = false;
+            this.dataGridViewInstances.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
+            this.dataGridViewInstances.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dataGridViewInstances.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.colModelName,
+            this.colPbiPort,
+            this.colFixedPort,
+            this.colAuto,
+            this.colNetwork,
+            this.colStatus,
+            this.colAction});
+            this.dataGridViewInstances.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.dataGridViewInstances.Location = new System.Drawing.Point(12, 12);
+            this.dataGridViewInstances.Name = "dataGridViewInstances";
+            this.dataGridViewInstances.RowHeadersVisible = false;
+            this.dataGridViewInstances.RowTemplate.Height = 25;
+            this.dataGridViewInstances.Size = new System.Drawing.Size(776, 216);
+            this.dataGridViewInstances.TabIndex = 0;
+            // 
+            // timerUpdate
+            // 
+            this.timerUpdate.Enabled = true;
+            this.timerUpdate.Interval = 5000;
+            // 
+            // colModelName
+            // 
+            this.colModelName.HeaderText = "Model Name";
+            this.colModelName.Name = "colModelName";
+            this.colModelName.ReadOnly = true;
+            // 
+            // colPbiPort
+            // 
+            this.colPbiPort.HeaderText = "PBI Port";
+            this.colPbiPort.Name = "colPbiPort";
+            this.colPbiPort.ReadOnly = true;
+            // 
+            // colFixedPort
+            // 
+            this.colFixedPort.HeaderText = "Fixed Port";
+            this.colFixedPort.Name = "colFixedPort";
+            // 
+            // colAuto
+            // 
+            this.colAuto.HeaderText = "Auto";
+            this.colAuto.Name = "colAuto";
+            // 
+            // colNetwork
+            // 
+            this.colNetwork.HeaderText = "Network";
+            this.colNetwork.Name = "colNetwork";
+            // 
+            // colStatus
+            // 
+            this.colStatus.HeaderText = "Status";
+            this.colStatus.Name = "colStatus";
+            this.colStatus.ReadOnly = true;
+            // 
+            // colAction
+            // 
+            this.colAction.HeaderText = "Action";
+            this.colAction.Name = "colAction";
+            this.colAction.Text = "Start";
+            this.colAction.UseColumnTextForButtonValue = false;
             // 
             // MainForm
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
-            AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(584, 531);
-            Controls.Add(groupBoxLog);
-            Controls.Add(buttonOpenLogs);
-            Controls.Add(buttonStop);
-            Controls.Add(buttonStart);
-            Controls.Add(labelStatus);
-            Controls.Add(groupBoxConnectionInfo);
-            Controls.Add(groupBoxConfig);
-            Controls.Add(groupBoxInstances);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            Name = "MainForm";
-            StartPosition = FormStartPosition.CenterScreen;
-            Text = "PBI Port Wrapper v0.1";
-            groupBoxInstances.ResumeLayout(false);
-            groupBoxConfig.ResumeLayout(false);
-            groupBoxConfig.PerformLayout();
-            groupBoxConnectionInfo.ResumeLayout(false);
-            groupBoxConnectionInfo.PerformLayout();
-            groupBoxLog.ResumeLayout(false);
-            groupBoxLog.PerformLayout();
-            ResumeLayout(false);
-            PerformLayout();
+            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.panelFill);
+            this.Controls.Add(this.panelBottom);
+            this.Controls.Add(this.panelTop);
+            this.Name = "MainForm";
+            this.Text = "Power BI Port Wrapper";
+            this.panelTop.ResumeLayout(false);
+            this.panelTop.PerformLayout();
+            this.panelBottom.ResumeLayout(false);
+            this.panelBottom.PerformLayout();
+            this.panelFill.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridViewInstances)).EndInit();
+            this.ResumeLayout(false);
+
         }
 
         #endregion
 
-        private GroupBox groupBoxInstances;
-        private Button buttonRefresh;
-        private ListBox listBoxInstances;
-        private GroupBox groupBoxConfig;
-        private CheckBox checkBoxNetworkAccess;
-        private TextBox textBoxFixedPort;
-        private Label labelFixedPort;
-        private GroupBox groupBoxConnectionInfo;
-        private Button buttonCopy;
-        private TextBox textBoxConnectionString;
-        private Label labelConnectionString;
-        private Label labelStatus;
-        private Button buttonStart;
-        private Button buttonStop;
-        private Button buttonOpenLogs;
-        private GroupBox groupBoxLog;
-        private TextBox textBoxLog;
+        private System.Windows.Forms.Panel panelTop;
+        private System.Windows.Forms.Panel panelBottom;
+        private System.Windows.Forms.Panel panelFill;
+        private System.Windows.Forms.DataGridView dataGridViewInstances;
+        private System.Windows.Forms.Label labelTitle;
+        private System.Windows.Forms.Button buttonRefresh;
+        private System.Windows.Forms.TextBox textBoxLog;
+        private System.Windows.Forms.Button buttonOpenLogs;
+        private System.Windows.Forms.Timer timerUpdate;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colModelName;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPbiPort;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colFixedPort;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn colAuto;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn colNetwork;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colStatus;
+        private System.Windows.Forms.DataGridViewButtonColumn colAction;
     }
 }

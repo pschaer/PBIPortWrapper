@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -10,282 +12,443 @@ namespace PBIPortWrapper
     public partial class MainForm : Form
     {
         private PowerBIDetector _detector;
-        private TcpProxyService _proxyService;
+        private ProxyManager _proxyManager;
         private ConfigurationManager _configManager;
         private ProxyConfiguration _config;
-        private PowerBIInstance _selectedInstance;
+        
+        // Cache of current instances to track state
+        private List<PowerBIInstance> _currentInstances = new List<PowerBIInstance>();
 
         public MainForm()
         {
             InitializeComponent();
 
-            this.Text = "Power BI Port Wrapper v0.1";
+            this.Text = "Power BI Port Wrapper v0.2";
 
             InitializeServices();
             InitializeEventHandlers();
             LoadConfiguration();
 
-            LogMessage("Power BI Port Wrapper v0.1");
-            LogMessage("=".PadRight(50, '='));
-            LogMessage("Features:");
-            LogMessage("  ✓ Stable port forwarding for Power BI Desktop");
-            LogMessage("  ✓ Local connections fully supported");
-            LogMessage("  ✓ Remote connections with explicit credentials");
+            LogMessage("Power BI Port Wrapper v0.2");
+            LogMessage("Features: Multi-instance support, Auto-reconnect, Process detection");
             LogMessage($"Log file: {_configManager.GetLogFilePath()}");
             LogMessage("");
 
+            // Initial refresh
             RefreshInstances();
         }
 
         private void InitializeServices()
         {
             _detector = new PowerBIDetector();
-            _proxyService = new TcpProxyService();
+            _proxyManager = new ProxyManager();
             _configManager = new ConfigurationManager();
 
-            _proxyService.OnLog += (sender, message) =>
+            _proxyManager.OnLog += (sender, message) => LogMessage(message);
+            _proxyManager.OnError += (sender, message) => LogMessage($"ERROR: {message}");
+            
+            _proxyManager.OnProxyStarted += (sender, args) => 
             {
-                LogMessage(message);
+                UpdateGridStatus(args.FixedPort, true);
+                LogMessage($"Started proxy on port {args.FixedPort} -> {args.TargetPort}");
             };
 
-            _proxyService.OnError += (sender, message) =>
+            _proxyManager.OnProxyStopped += (sender, args) => 
             {
-                LogMessage(message);
+                UpdateGridStatus(args.FixedPort, false);
+                LogMessage($"Stopped proxy on port {args.FixedPort}");
             };
         }
 
         private void InitializeEventHandlers()
         {
-            buttonStart.Click += ButtonStart_Click;
-            buttonStop.Click += ButtonStop_Click;
-            buttonRefresh.Click += ButtonRefresh_Click;
-            buttonCopy.Click += ButtonCopy_Click;
+            buttonRefresh.Click += (s, e) => RefreshInstances();
             buttonOpenLogs.Click += ButtonOpenLogs_Click;
-            checkBoxNetworkAccess.CheckedChanged += CheckBoxNetworkAccess_CheckedChanged;
-            listBoxInstances.SelectedIndexChanged += ListBoxInstances_SelectedIndexChanged;
+            
+            dataGridViewInstances.CellContentClick += DataGridViewInstances_CellContentClick;
+            dataGridViewInstances.CellValueChanged += DataGridViewInstances_CellValueChanged;
+            dataGridViewInstances.CellEndEdit += DataGridViewInstances_CellEndEdit;
+            dataGridViewInstances.CellValidating += DataGridViewInstances_CellValidating;
+            
+            timerUpdate.Tick += (s, e) => RefreshInstances();
             this.FormClosing += MainForm_FormClosing;
-
-            UpdateStatus("Not Running", false);
         }
 
         private void LoadConfiguration()
         {
             _config = _configManager.LoadConfiguration();
-
-            textBoxFixedPort.Text = _config.FixedPort.ToString();
-            checkBoxNetworkAccess.Checked = _config.AllowNetworkAccess;
-
-            UpdateConnectionString();
         }
 
         private void SaveConfiguration()
         {
-            try
-            {
-                if (int.TryParse(textBoxFixedPort.Text, out int fixedPort))
-                {
-                    _config.FixedPort = fixedPort;
-                }
-
-                _config.AllowNetworkAccess = checkBoxNetworkAccess.Checked;
-
-                if (_selectedInstance != null)
-                {
-                    _config.LastSelectedInstance = _selectedInstance.WorkspaceId;
-                }
-
-                _configManager.SaveConfiguration(_config);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    $"Error saving configuration: {ex.Message}",
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
+            _configManager.SaveConfiguration(_config);
         }
 
         private void RefreshInstances()
         {
-            listBoxInstances.Items.Clear();
-
             if (!_detector.IsWorkspacePathValid())
             {
-                listBoxInstances.Items.Add("Power BI Desktop workspace folder not found");
                 return;
             }
 
-            var instances = _detector.DetectRunningInstances();
+            var detectedInstances = _detector.DetectRunningInstances();
+            
+            // Update internal list
+            _currentInstances = detectedInstances;
 
-            if (instances.Count == 0)
-            {
-                listBoxInstances.Items.Add("No running Power BI Desktop instances found");
-                return;
-            }
+            // Sync with Grid
+            SyncGridWithInstances(detectedInstances);
 
-            foreach (var instance in instances)
-            {
-                listBoxInstances.Items.Add(instance);
-            }
-
-            if (instances.Count > 0)
-            {
-                if (!string.IsNullOrEmpty(_config.LastSelectedInstance))
-                {
-                    var lastInstance = instances.FirstOrDefault(i => i.WorkspaceId == _config.LastSelectedInstance);
-                    if (lastInstance != null)
-                    {
-                        listBoxInstances.SelectedItem = lastInstance;
-                        return;
-                    }
-                }
-
-                listBoxInstances.SelectedIndex = 0;
-            }
+            // Handle Auto-Connect
+            ProcessAutoConnect(detectedInstances);
         }
 
-        private async void ButtonStart_Click(object sender, EventArgs e)
+        private void SyncGridWithInstances(List<PowerBIInstance> instances)
         {
-            if (_selectedInstance == null)
-            {
-                MessageBox.Show(
-                    "Please select a Power BI Desktop instance first.",
-                    "No Instance Selected",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
+            // 1. Mark all rows as "missing" initially (we'll unmark them if found)
+            var rowsToRemove = new List<DataGridViewRow>();
+            var activeProcessIds = instances.Select(i => i.ProcessId).ToHashSet();
 
-            if (!int.TryParse(textBoxFixedPort.Text, out int fixedPort) || fixedPort < 1024 || fixedPort > 65535)
+            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
             {
-                MessageBox.Show(
-                    "Please enter a valid port number (1024-65535).",
-                    "Invalid Port",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
-            }
+                // Try to match by ProcessId (stored in Tag) first, then by Name
+                int? rowProcessId = row.Tag as int?;
+                string modelName = row.Cells["colModelName"].Value?.ToString();
 
-            try
-            {
-                ClearLog();
-                LogMessage($"Starting port forwarding for {_selectedInstance.FileName}");
-                LogMessage($"Target: localhost:{_selectedInstance.Port}");
-
-                if (!string.IsNullOrEmpty(_selectedInstance.DatabaseName))
+                bool isFound = false;
+                
+                if (rowProcessId.HasValue && activeProcessIds.Contains(rowProcessId.Value))
                 {
-                    LogMessage($"Database: {_selectedInstance.DatabaseName}");
+                    isFound = true;
+                }
+                else if (instances.Any(i => i.FileName == modelName))
+                {
+                    isFound = true;
+                }
+
+                if (!isFound)
+                {
+                    int fixedPort = 0;
+                    if (row.Cells["colFixedPort"].Value != null)
+                    {
+                        int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+                    }
+
+                    if (fixedPort > 0 && _proxyManager.IsRunning(fixedPort))
+                    {
+                        row.Cells["colStatus"].Value = "PBI Closed (Proxy Running)";
+                        row.Cells["colStatus"].Style.ForeColor = Color.Orange;
+                    }
+                    else
+                    {
+                        rowsToRemove.Add(row);
+                    }
+                }
+            }
+
+            // Remove rows for closed instances (that aren't running proxies)
+            foreach (var row in rowsToRemove)
+            {
+                dataGridViewInstances.Rows.Remove(row);
+            }
+
+            // 2. Add or Update rows
+            foreach (var instance in instances)
+            {
+                // Try to find existing row by ProcessId (Tag)
+                var existingRow = dataGridViewInstances.Rows
+                    .Cast<DataGridViewRow>()
+                    .FirstOrDefault(r => (r.Tag as int?) == instance.ProcessId);
+
+                // Fallback: Find by Name if Tag is missing or mismatch (e.g. app restart)
+                if (existingRow == null)
+                {
+                    existingRow = dataGridViewInstances.Rows
+                        .Cast<DataGridViewRow>()
+                        .FirstOrDefault(r => r.Cells["colModelName"].Value?.ToString() == instance.FileName);
+                }
+
+                if (existingRow == null)
+                {
+                    // New instance found
+                    int rowIndex = dataGridViewInstances.Rows.Add();
+                    existingRow = dataGridViewInstances.Rows[rowIndex];
+                    existingRow.Tag = instance.ProcessId; // Store ProcessId
+                    existingRow.Cells["colModelName"].Value = instance.FileName;
+                    
+                    // Apply saved rule or default
+                    var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
+                    if (rule != null)
+                    {
+                        existingRow.Cells["colFixedPort"].Value = rule.FixedPort;
+                        existingRow.Cells["colAuto"].Value = rule.AutoConnect;
+                        existingRow.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
+                    }
+                    else
+                    {
+                        // Default: Suggest a port (e.g. 55555 + index)
+                        int suggestedPort = 55555 + rowIndex;
+                        existingRow.Cells["colFixedPort"].Value = suggestedPort;
+                        existingRow.Cells["colAuto"].Value = false;
+                        existingRow.Cells["colNetwork"].Value = false;
+                    }
                 }
                 else
                 {
-                    LogMessage("Database: (not detected)");
-                }
-
-                bool allowRemote = checkBoxNetworkAccess.Checked;
-
-                if (allowRemote)
-                {
-                    CheckFirewall();
-                }
-
-                await _proxyService.StartAsync(fixedPort, _selectedInstance.Port, allowRemote);
-
-                UpdateStatus("Running", true);
-                UpdateConnectionString();
-                SaveConfiguration();
-
-                LogMessage("Port forwarding started successfully");
-                LogMessage($"Clients can connect to: localhost:{fixedPort}");
-
-                if (allowRemote)
-                {
-                    LogMessage("Network access enabled - accessible from other computers");
-                    LogMessage("Remote connection info:");
-                    LogMessage("  • Use explicit credentials (username/password)");
-                    LogMessage("  • Windows Integrated Authentication may not work from remote hosts");
-                    LogMessage("  • Provide your Microsoft Account or local Windows credentials");
-
-                    try
+                    // Update Tag and Name (in case it changed from Untitled -> Name)
+                    existingRow.Tag = instance.ProcessId;
+                    if (existingRow.Cells["colModelName"].Value?.ToString() != instance.FileName)
                     {
-                        var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
-                        foreach (var ip in host.AddressList)
+                        existingRow.Cells["colModelName"].Value = instance.FileName;
+                        // Also try to re-apply rule if name changed
+                        var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
+                        if (rule != null)
                         {
-                            if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            // Only update if not already set/running to avoid disrupting
+                            if (!_proxyManager.IsRunning(Convert.ToInt32(existingRow.Cells["colFixedPort"].Value)))
                             {
-                                LogMessage($"  Network address: {ip}:{fixedPort}");
+                                existingRow.Cells["colFixedPort"].Value = rule.FixedPort;
+                                existingRow.Cells["colAuto"].Value = rule.AutoConnect;
+                                existingRow.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
                             }
                         }
                     }
-                    catch
+                }
+
+                // Update PBI Port (it changes every restart)
+                existingRow.Cells["colPbiPort"].Value = instance.Port;
+
+                // Update Status if not running
+                int fixedPort = Convert.ToInt32(existingRow.Cells["colFixedPort"].Value);
+                if (_proxyManager.IsRunning(fixedPort))
+                {
+                    existingRow.Cells["colStatus"].Value = "Running";
+                    existingRow.Cells["colStatus"].Style.ForeColor = Color.Green;
+                    existingRow.Cells["colAction"].Value = "Stop";
+                    existingRow.Cells["colFixedPort"].ReadOnly = true;
+                    existingRow.Cells["colNetwork"].ReadOnly = true;
+                }
+                else
+                {
+                    existingRow.Cells["colStatus"].Value = "Ready";
+                    existingRow.Cells["colStatus"].Style.ForeColor = Color.Black;
+                    existingRow.Cells["colAction"].Value = "Start";
+                    existingRow.Cells["colFixedPort"].ReadOnly = false;
+                    existingRow.Cells["colNetwork"].ReadOnly = false;
+                }
+            }
+        }
+
+        private void ProcessAutoConnect(List<PowerBIInstance> instances)
+        {
+            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
+            {
+                bool isAuto = Convert.ToBoolean(row.Cells["colAuto"].Value);
+                string status = row.Cells["colStatus"].Value?.ToString();
+                string modelName = row.Cells["colModelName"].Value?.ToString();
+                
+                if (isAuto && status == "Ready")
+                {
+                    var instance = instances.FirstOrDefault(i => i.FileName == modelName);
+                    if (instance != null)
                     {
-                        LogMessage("  Could not determine local IP addresses");
+                        int fixedPort = Convert.ToInt32(row.Cells["colFixedPort"].Value);
+                        StartProxySafe(instance, fixedPort, row);
                     }
                 }
             }
-            catch (Exception ex)
-            {
-                LogMessage($"Failed to start: {ex.Message}");
-                MessageBox.Show(
-                    $"Failed to start port forwarding:\n\n{ex.Message}",
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-                UpdateStatus("Error", false);
-            }
         }
 
-        private void ButtonStop_Click(object sender, EventArgs e)
+        private async void StartProxySafe(PowerBIInstance instance, int fixedPort, DataGridViewRow row)
         {
             try
             {
-                LogMessage("Stopping port forwarding...");
-                _proxyService.Stop();
-                UpdateStatus("Stopped", false);
+                if (_proxyManager.IsRunning(fixedPort)) return;
+
+                // Check if port is valid
+                if (fixedPort < 1024 || fixedPort > 65535)
+                {
+                    LogMessage($"Invalid port {fixedPort} for {instance.FileName}");
+                    return;
+                }
+
+                bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
+
+                if (allowNetwork)
+                {
+                    // Ensure firewall rule exists (simple check/add)
+                    // In a real app, we might want to check specifically, but re-running the command is usually safe or we can prompt.
+                    // For auto-start, we assume user has configured it.
+                }
+
+                await _proxyManager.StartProxyAsync(fixedPort, instance.Port, allowNetwork);
             }
             catch (Exception ex)
             {
-                LogMessage($"Error stopping: {ex.Message}");
-                MessageBox.Show(
-                    $"Error stopping port forwarding:\n\n{ex.Message}",
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
+                LogMessage($"Failed to start {instance.FileName}: {ex.Message}");
             }
         }
 
-        private void ButtonRefresh_Click(object sender, EventArgs e)
+        private void UpdateGridStatus(int fixedPort, bool isRunning)
         {
-            LogMessage("Refreshing Power BI instances...");
-            RefreshInstances();
-
-            int count = 0;
-            foreach (var item in listBoxInstances.Items)
+            if (InvokeRequired)
             {
-                if (item is PowerBIInstance instance)
-                {
-                    count++;
-                    LogMessage($"  Found: {instance.FileName} (Port: {instance.Port}, DB: {instance.DatabaseName ?? "unknown"})");
-                }
+                Invoke(new Action(() => UpdateGridStatus(fixedPort, isRunning)));
+                return;
             }
 
-            if (count > 0)
+            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
             {
-                LogMessage($"Total: {count} running instance(s)");
+                if (Convert.ToInt32(row.Cells["colFixedPort"].Value) == fixedPort)
+                {
+                    row.Cells["colStatus"].Value = isRunning ? "Running" : "Ready";
+                    row.Cells["colStatus"].Style.ForeColor = isRunning ? Color.Green : Color.Black;
+                    row.Cells["colAction"].Value = isRunning ? "Stop" : "Start";
+                    
+                    // Lock editing while running
+                    row.Cells["colFixedPort"].ReadOnly = isRunning;
+                    row.Cells["colNetwork"].ReadOnly = isRunning;
+                }
+            }
+        }
+
+        private async void DataGridViewInstances_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            if (dataGridViewInstances.Columns[e.ColumnIndex].Name == "colAction")
+            {
+                var row = dataGridViewInstances.Rows[e.RowIndex];
+                string action = row.Cells["colAction"].Value?.ToString();
+                int fixedPort = Convert.ToInt32(row.Cells["colFixedPort"].Value);
+                string modelName = row.Cells["colModelName"].Value?.ToString();
+
+                if (action == "Start")
+                {
+                    var instance = _currentInstances.FirstOrDefault(i => i.FileName == modelName);
+                    // Fallback to finding by ProcessId if name mismatch
+                    if (instance == null && row.Tag is int pid)
+                    {
+                        instance = _currentInstances.FirstOrDefault(i => i.ProcessId == pid);
+                    }
+
+                    if (instance != null)
+                    {
+                        // Check for duplicate ports
+                        if (IsPortDuplicate(fixedPort, e.RowIndex))
+                        {
+                            MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+
+                        bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
+                        if (allowNetwork)
+                        {
+                            var result = MessageBox.Show(
+                                "Network Access is enabled for this instance.\nEnsure Windows Firewall allows inbound connections on port " + fixedPort + ".\n\nContinue?", 
+                                "Network Access", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                            if (result != DialogResult.Yes) return;
+                        }
+
+                        StartProxySafe(instance, fixedPort, row);
+                        
+                        // Save rule on manual start
+                        UpdateAndSaveRule(row);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Power BI instance not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+                else if (action == "Stop")
+                {
+                    _proxyManager.StopProxy(fixedPort);
+                }
+            }
+        }
+
+        private bool IsPortDuplicate(int port, int currentRowIndex)
+        {
+            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
+            {
+                if (row.Index == currentRowIndex) continue;
+                
+                if (row.Cells["colFixedPort"].Value != null && 
+                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int otherPort))
+                {
+                    if (otherPort == port) return true;
+                }
+            }
+            return false;
+        }
+
+        private void DataGridViewInstances_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
+        {
+            if (dataGridViewInstances.Columns[e.ColumnIndex].Name == "colFixedPort")
+            {
+                if (!int.TryParse(e.FormattedValue.ToString(), out int newPort))
+                {
+                    e.Cancel = true;
+                    dataGridViewInstances.Rows[e.RowIndex].ErrorText = "Port must be a number";
+                    return;
+                }
+
+                if (IsPortDuplicate(newPort, e.RowIndex))
+                {
+                    e.Cancel = true;
+                    MessageBox.Show($"Port {newPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                
+                dataGridViewInstances.Rows[e.RowIndex].ErrorText = string.Empty;
+            }
+        }
+
+        private void DataGridViewInstances_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+             UpdateAndSaveRule(dataGridViewInstances.Rows[e.RowIndex]);
+        }
+        
+        private void DataGridViewInstances_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= 0)
+            {
+                string colName = dataGridViewInstances.Columns[e.ColumnIndex].Name;
+                if (colName == "colAuto" || colName == "colNetwork")
+                {
+                    UpdateAndSaveRule(dataGridViewInstances.Rows[e.RowIndex]);
+                }
+            }
+        }
+
+        private void UpdateAndSaveRule(DataGridViewRow row)
+        {
+            string modelName = row.Cells["colModelName"].Value?.ToString();
+            if (string.IsNullOrEmpty(modelName)) return;
+
+            int fixedPort = 0;
+            if (row.Cells["colFixedPort"].Value != null)
+            {
+                int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+            }
+
+            bool auto = Convert.ToBoolean(row.Cells["colAuto"].Value);
+            bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
+
+            // Update or Add rule
+            var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
+            if (rule != null)
+            {
+                rule.FixedPort = fixedPort;
+                rule.AutoConnect = auto;
+                rule.AllowNetworkAccess = network;
             }
             else
             {
-                LogMessage("No running instances found");
+                _config.PortMappings.Add(new PortMappingRule(modelName, fixedPort, auto, network));
             }
-        }
 
-        private void ButtonCopy_Click(object sender, EventArgs e)
-        {
-            if (!string.IsNullOrEmpty(textBoxConnectionString.Text))
-            {
-                Clipboard.SetText(textBoxConnectionString.Text);
-                LogMessage("Server address copied to clipboard");
-            }
+            SaveConfiguration();
         }
 
         private void ButtonOpenLogs_Click(object sender, EventArgs e)
@@ -294,95 +457,16 @@ namespace PBIPortWrapper
             {
                 string logPath = _configManager.GetAppDataPath();
                 System.Diagnostics.Process.Start("explorer.exe", logPath);
-                LogMessage($"Opened log folder: {logPath}");
             }
             catch (Exception ex)
             {
                 LogMessage($"Error opening log folder: {ex.Message}");
-                MessageBox.Show(
-                    $"Could not open log folder:\n\n{ex.Message}",
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
             }
-        }
-
-        private void CheckBoxNetworkAccess_CheckedChanged(object sender, EventArgs e)
-        {
-            if (checkBoxNetworkAccess.Checked)
-            {
-                LogMessage("Network access will be enabled on next start");
-            }
-        }
-
-        private void ListBoxInstances_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (_proxyService != null && _proxyService.IsRunning)
-            {
-                if (_selectedInstance != null)
-                {
-                    listBoxInstances.SelectedItem = _selectedInstance;
-                }
-                return;
-            }
-
-            if (listBoxInstances.SelectedItem is PowerBIInstance instance)
-            {
-                _selectedInstance = instance;
-                UpdateConnectionString();
-            }
-            else
-            {
-                _selectedInstance = null;
-            }
-        }
-
-        private void UpdateConnectionString()
-        {
-            if (int.TryParse(textBoxFixedPort.Text, out int port))
-            {
-                textBoxConnectionString.Text = $"localhost:{port}";
-            }
-        }
-
-        private void UpdateStatus(string status, bool isRunning)
-        {
-            labelStatus.Text = $"Status: {status}";
-            labelStatus.ForeColor = isRunning ? System.Drawing.Color.Green : System.Drawing.Color.Red;
-
-            buttonStart.Enabled = !isRunning;
-            buttonStop.Enabled = isRunning;
-            buttonRefresh.Enabled = !isRunning;
-
-            textBoxFixedPort.Enabled = !isRunning;
-            checkBoxNetworkAccess.Enabled = !isRunning;
-            listBoxInstances.Enabled = !isRunning;
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (_proxyService != null && _proxyService.IsRunning)
-            {
-                var result = MessageBox.Show(
-                    "Port forwarding is still running. Stop it and exit?",
-                    "Confirm Exit",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question
-                );
-
-                if (result == DialogResult.Yes)
-                {
-                    LogMessage("Application closing - stopping port forwarding");
-                    _proxyService.Stop();
-                }
-                else
-                {
-                    e.Cancel = true;
-                    return;
-                }
-            }
-
-            _proxyService?.Dispose();
+            _proxyManager.StopAll();
             SaveConfiguration();
         }
 
@@ -395,96 +479,14 @@ namespace PBIPortWrapper
             }
 
             string timestampedMessage = $"[{DateTime.Now:HH:mm:ss}] {message}";
-
             textBoxLog.AppendText($"{timestampedMessage}{Environment.NewLine}");
-            textBoxLog.SelectionStart = textBoxLog.Text.Length;
-            textBoxLog.ScrollToCaret();
-
+            
             try
             {
                 string logFile = _configManager.GetLogFilePath();
                 File.AppendAllText(logFile, timestampedMessage + Environment.NewLine);
             }
-            catch
-            {
-                // Silently fail if can't write to log file
-            }
-        }
-
-        private void ClearLog()
-        {
-            textBoxLog.Clear();
-        }
-
-        private void CheckFirewall()
-        {
-            var result = MessageBox.Show(
-                "Network Access Configuration:\n\n" +
-                "✓ Remote connections are supported\n" +
-                "✓ Clients must provide explicit credentials\n" +
-                "  (username/password, not Windows Authentication)\n\n" +
-                "Note: Windows Firewall may block connections.\n" +
-                "Would you like instructions on how to configure the firewall?",
-                "Network Access",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Information
-            );
-
-            if (result == DialogResult.Yes)
-            {
-                ShowFirewallInstructions();
-            }
-        }
-
-        private void ShowFirewallInstructions()
-        {
-            string instructions =
-                "To allow network access through Windows Firewall:\n\n" +
-                "1. Open Windows Defender Firewall with Advanced Security\n" +
-                "2. Click 'Inbound Rules' → 'New Rule'\n" +
-                "3. Select 'Port' → Next\n" +
-                "4. Select 'TCP' and enter port: " + textBoxFixedPort.Text + "\n" +
-                "5. Select 'Allow the connection' → Next\n" +
-                "6. Check all profiles (Domain, Private, Public) → Next\n" +
-                "7. Name: 'Power BI Port Wrapper' → Finish\n\n" +
-                "Or run this PowerShell command as Administrator:\n\n" +
-                $"New-NetFirewallRule -DisplayName \"Power BI Port Wrapper\" -Direction Inbound -LocalPort {textBoxFixedPort.Text} -Protocol TCP -Action Allow";
-
-            var form = new Form
-            {
-                Text = "Firewall Configuration Instructions",
-                Width = 600,
-                Height = 400,
-                StartPosition = FormStartPosition.CenterParent
-            };
-
-            var textBox = new TextBox
-            {
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                Dock = DockStyle.Fill,
-                Text = instructions,
-                Font = new System.Drawing.Font("Consolas", 9),
-                ReadOnly = true
-            };
-
-            var copyButton = new Button
-            {
-                Text = "Copy PowerShell Command",
-                Dock = DockStyle.Bottom,
-                Height = 35
-            };
-
-            copyButton.Click += (s, ev) =>
-            {
-                string psCommand = $"New-NetFirewallRule -DisplayName \"Power BI Port Wrapper\" -Direction Inbound -LocalPort {textBoxFixedPort.Text} -Protocol TCP -Action Allow";
-                Clipboard.SetText(psCommand);
-                MessageBox.Show("PowerShell command copied to clipboard!", "Copied", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
-
-            form.Controls.Add(textBox);
-            form.Controls.Add(copyButton);
-            form.ShowDialog();
+            catch { }
         }
     }
 }
