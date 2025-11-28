@@ -68,6 +68,11 @@ namespace PBIPortWrapper.Services
             return _proxies.ContainsKey(fixedPort) && _proxies[fixedPort].IsRunning;
         }
 
+        public bool HasRunningProxies()
+        {
+            return _proxies.Any(p => p.Value.IsRunning);
+        }
+
         public int GetActiveConnections(int fixedPort)
         {
             if (_proxies.TryGetValue(fixedPort, out var proxy))
