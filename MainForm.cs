@@ -18,19 +18,21 @@ namespace PBIPortWrapper
         
         // Cache of current instances to track state
         private List<PowerBIInstance> _currentInstances = new List<PowerBIInstance>();
+        private ContextMenuStrip _contextMenuGrid;
 
         public MainForm()
         {
             InitializeComponent();
 
-            this.Text = "Power BI Port Wrapper v0.2";
+            this.Text = "Power BI Port Wrapper v0.3";
 
             InitializeServices();
             InitializeEventHandlers();
+            InitializeContextMenu();
             LoadConfiguration();
 
-            LogMessage("Power BI Port Wrapper v0.2");
-            LogMessage("Features: Multi-instance support, Auto-reconnect, Process detection");
+            LogMessage("Power BI Port Wrapper v0.3");
+            LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
             LogMessage($"Log file: {_configManager.GetLogFilePath()}");
             LogMessage("");
 
@@ -74,6 +76,28 @@ namespace PBIPortWrapper
             this.FormClosing += MainForm_FormClosing;
         }
 
+        private void InitializeContextMenu()
+        {
+            _contextMenuGrid = new ContextMenuStrip();
+            
+            var openFolderItem = new ToolStripMenuItem("Open Folder");
+            openFolderItem.Click += OpenFolder_Click;
+            _contextMenuGrid.Items.Add(openFolderItem);
+
+            var copyPathItem = new ToolStripMenuItem("Copy Path");
+            copyPathItem.Click += CopyPath_Click;
+            _contextMenuGrid.Items.Add(copyPathItem);
+
+            _contextMenuGrid.Items.Add(new ToolStripSeparator());
+
+            var deleteItem = new ToolStripMenuItem("Delete Configuration");
+            deleteItem.Click += DeleteConfiguration_Click;
+            _contextMenuGrid.Items.Add(deleteItem);
+            
+            dataGridViewInstances.ContextMenuStrip = _contextMenuGrid;
+            dataGridViewInstances.MouseDown += DataGridViewInstances_MouseDown;
+        }
+
         private void LoadConfiguration()
         {
             _config = _configManager.LoadConfiguration();
@@ -105,138 +129,191 @@ namespace PBIPortWrapper
 
         private void SyncGridWithInstances(List<PowerBIInstance> instances)
         {
-            // 1. Mark all rows as "missing" initially (we'll unmark them if found)
-            var rowsToRemove = new List<DataGridViewRow>();
             var activeProcessIds = instances.Select(i => i.ProcessId).ToHashSet();
+            var processedRows = new HashSet<DataGridViewRow>();
 
-            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
-            {
-                // Try to match by ProcessId (stored in Tag) first, then by Name
-                int? rowProcessId = row.Tag as int?;
-                string modelName = row.Cells["colModelName"].Value?.ToString();
-
-                bool isFound = false;
-                
-                if (rowProcessId.HasValue && activeProcessIds.Contains(rowProcessId.Value))
-                {
-                    isFound = true;
-                }
-                else if (instances.Any(i => i.FileName == modelName))
-                {
-                    isFound = true;
-                }
-
-                if (!isFound)
-                {
-                    int fixedPort = 0;
-                    if (row.Cells["colFixedPort"].Value != null)
-                    {
-                        int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
-                    }
-
-                    if (fixedPort > 0 && _proxyManager.IsRunning(fixedPort))
-                    {
-                        row.Cells["colStatus"].Value = "PBI Closed (Proxy Running)";
-                        row.Cells["colStatus"].Style.ForeColor = Color.Orange;
-                    }
-                    else
-                    {
-                        rowsToRemove.Add(row);
-                    }
-                }
-            }
-
-            // Remove rows for closed instances (that aren't running proxies)
-            foreach (var row in rowsToRemove)
-            {
-                dataGridViewInstances.Rows.Remove(row);
-            }
-
-            // 2. Add or Update rows
+            // 1. Update existing rows with detected instances
             foreach (var instance in instances)
             {
-                // Try to find existing row by ProcessId (Tag)
-                var existingRow = dataGridViewInstances.Rows
+                DataGridViewRow row = null;
+
+                // Priority 1: Match by ProcessId (Tag) - for currently running/tracked instances
+                row = dataGridViewInstances.Rows
                     .Cast<DataGridViewRow>()
                     .FirstOrDefault(r => (r.Tag as int?) == instance.ProcessId);
 
-                // Fallback: Find by Name if Tag is missing or mismatch (e.g. app restart)
-                if (existingRow == null)
+                // Priority 2: Match by FilePath - for Offline rows that are coming back online
+                if (row == null && !string.IsNullOrEmpty(instance.FilePath))
                 {
-                    existingRow = dataGridViewInstances.Rows
+                    row = dataGridViewInstances.Rows
+                        .Cast<DataGridViewRow>()
+                        .FirstOrDefault(r => 
+                        {
+                            // Check hidden path stored in Tag or ToolTip? 
+                            // We store path in ToolTipText but parsing it is messy if we change format.
+                            // Better to rely on the config match logic or store path in a hidden cell/Tag object.
+                            // For now, let's check the ToolTipText if it contains the path.
+                            string toolTip = r.Cells["colModelName"].ToolTipText;
+                            return toolTip != null && toolTip.Contains(instance.FilePath);
+                        });
+                }
+
+                // Priority 3: Match by FileName - Legacy fallback or if paths are identical/missing
+                if (row == null)
+                {
+                    row = dataGridViewInstances.Rows
                         .Cast<DataGridViewRow>()
                         .FirstOrDefault(r => r.Cells["colModelName"].Value?.ToString() == instance.FileName);
                 }
 
-                if (existingRow == null)
+                if (row == null)
                 {
-                    // New instance found
+                    // New Row
                     int rowIndex = dataGridViewInstances.Rows.Add();
-                    existingRow = dataGridViewInstances.Rows[rowIndex];
-                    existingRow.Tag = instance.ProcessId; // Store ProcessId
-                    existingRow.Cells["colModelName"].Value = instance.FileName;
+                    row = dataGridViewInstances.Rows[rowIndex];
                     
-                    // Apply saved rule or default
-                    var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
+                    // Apply saved rule if exists
+                    var rule = _config.PortMappings.FirstOrDefault(r => 
+                        (!string.IsNullOrEmpty(r.FilePath) && r.FilePath == instance.FilePath) || 
+                        r.ModelNamePattern == instance.FileName);
+
                     if (rule != null)
                     {
-                        existingRow.Cells["colFixedPort"].Value = rule.FixedPort;
-                        existingRow.Cells["colAuto"].Value = rule.AutoConnect;
-                        existingRow.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
+                        row.Cells["colFixedPort"].Value = rule.FixedPort;
+                        row.Cells["colAuto"].Value = rule.AutoConnect;
+                        row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
                     }
                     else
                     {
-                        // Default: Suggest a port (e.g. 55555 + index)
+                        // Default
                         int suggestedPort = 55555 + rowIndex;
-                        existingRow.Cells["colFixedPort"].Value = suggestedPort;
-                        existingRow.Cells["colAuto"].Value = false;
-                        existingRow.Cells["colNetwork"].Value = false;
-                    }
-                }
-                else
-                {
-                    // Update Tag and Name (in case it changed from Untitled -> Name)
-                    existingRow.Tag = instance.ProcessId;
-                    if (existingRow.Cells["colModelName"].Value?.ToString() != instance.FileName)
-                    {
-                        existingRow.Cells["colModelName"].Value = instance.FileName;
-                        // Also try to re-apply rule if name changed
-                        var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
-                        if (rule != null)
-                        {
-                            // Only update if not already set/running to avoid disrupting
-                            if (!_proxyManager.IsRunning(Convert.ToInt32(existingRow.Cells["colFixedPort"].Value)))
-                            {
-                                existingRow.Cells["colFixedPort"].Value = rule.FixedPort;
-                                existingRow.Cells["colAuto"].Value = rule.AutoConnect;
-                                existingRow.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
-                            }
-                        }
+                        row.Cells["colFixedPort"].Value = suggestedPort;
+                        row.Cells["colAuto"].Value = false;
+                        row.Cells["colNetwork"].Value = false;
                     }
                 }
 
-                // Update PBI Port (it changes every restart)
-                existingRow.Cells["colPbiPort"].Value = instance.Port;
+                // Update Row Data
+                row.Tag = instance.ProcessId;
+                row.Cells["colModelName"].Value = instance.FileName;
+                row.Cells["colModelName"].ToolTipText = $"Name: {instance.FileName}\nPath: {instance.FilePath}";
+                row.Cells["colPbiPort"].Value = instance.Port;
 
-                // Update Status if not running
-                int fixedPort = Convert.ToInt32(existingRow.Cells["colFixedPort"].Value);
+                // Update Status
+                int fixedPort = Convert.ToInt32(row.Cells["colFixedPort"].Value);
                 if (_proxyManager.IsRunning(fixedPort))
                 {
-                    existingRow.Cells["colStatus"].Value = "Running";
-                    existingRow.Cells["colStatus"].Style.ForeColor = Color.Green;
-                    existingRow.Cells["colAction"].Value = "Stop";
-                    existingRow.Cells["colFixedPort"].ReadOnly = true;
-                    existingRow.Cells["colNetwork"].ReadOnly = true;
+                    SetRowStatus(row, "Running", Color.Green, "Stop", true);
                 }
                 else
                 {
-                    existingRow.Cells["colStatus"].Value = "Ready";
-                    existingRow.Cells["colStatus"].Style.ForeColor = Color.Black;
-                    existingRow.Cells["colAction"].Value = "Start";
-                    existingRow.Cells["colFixedPort"].ReadOnly = false;
-                    existingRow.Cells["colNetwork"].ReadOnly = false;
+                    SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                }
+
+                processedRows.Add(row);
+            }
+
+            // 2. Handle rows that are NOT in the detected list (Offline or Closed)
+            var rowsToRemove = new List<DataGridViewRow>();
+            
+            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
+            {
+                if (processedRows.Contains(row)) continue;
+
+                // This row represents an instance that is no longer detected.
+                
+                // Get current fixed port
+                int fixedPort = 0;
+                if (row.Cells["colFixedPort"].Value != null)
+                {
+                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+                }
+
+                // Stop proxy if it was running (User Requirement: Stop on close)
+                if (fixedPort > 0 && _proxyManager.IsRunning(fixedPort))
+                {
+                    _proxyManager.StopProxy(fixedPort);
+                    LogMessage($"Auto-stopped proxy on port {fixedPort} (PBI closed)");
+                }
+
+                // Check if this row has a saved configuration
+                string modelName = row.Cells["colModelName"].Value?.ToString();
+                // Extract path from tooltip if possible, or rely on name match
+                string toolTip = row.Cells["colModelName"].ToolTipText;
+                string filePath = null;
+                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+                {
+                    filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+                }
+
+                var rule = _config.PortMappings.FirstOrDefault(r => 
+                    (!string.IsNullOrEmpty(r.FilePath) && r.FilePath == filePath) || 
+                    r.ModelNamePattern == modelName);
+
+                if (rule != null)
+                {
+                    // It's a saved config, keep it as "Offline"
+                    row.Tag = null; // Clear ProcessId
+                    row.Cells["colPbiPort"].Value = ""; // No PBI port
+                    SetRowStatus(row, "Offline", Color.Gray, "Delete", false); // Action is now Delete
+                }
+                else
+                {
+                    // No saved config, just a transient instance that closed -> Remove
+                    rowsToRemove.Add(row);
                 }
             }
+
+            foreach (var row in rowsToRemove)
+            {
+                dataGridViewInstances.Rows.Remove(row);
+            }
+            
+            // 3. Ensure all saved configs have a row (even if never detected yet)
+            foreach (var rule in _config.PortMappings)
+            {
+                bool exists = false;
+                foreach (DataGridViewRow row in dataGridViewInstances.Rows)
+                {
+                    string rowName = row.Cells["colModelName"].Value?.ToString();
+                    string toolTip = row.Cells["colModelName"].ToolTipText;
+                    
+                    // Check path match first
+                    if (!string.IsNullOrEmpty(rule.FilePath) && !string.IsNullOrEmpty(toolTip) && toolTip.Contains(rule.FilePath))
+                    {
+                        exists = true;
+                        break;
+                    }
+                    // Fallback to name match
+                    if (string.IsNullOrEmpty(rule.FilePath) && rule.ModelNamePattern == rowName)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                {
+                    int rowIndex = dataGridViewInstances.Rows.Add();
+                    var row = dataGridViewInstances.Rows[rowIndex];
+                    row.Cells["colModelName"].Value = rule.ModelNamePattern;
+                    row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\nPath: {rule.FilePath}";
+                    row.Cells["colFixedPort"].Value = rule.FixedPort;
+                    row.Cells["colAuto"].Value = rule.AutoConnect;
+                    row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
+                    row.Cells["colPbiPort"].Value = "";
+                    SetRowStatus(row, "Offline", Color.Gray, "Delete", false);
+                }
+            }
+        }
+
+        private void SetRowStatus(DataGridViewRow row, string status, Color color, string actionText, bool isReadOnly)
+        {
+            row.Cells["colStatus"].Value = status;
+            row.Cells["colStatus"].Style.ForeColor = color;
+            row.Cells["colAction"].Value = actionText;
+            row.Cells["colFixedPort"].ReadOnly = isReadOnly;
+            row.Cells["colNetwork"].ReadOnly = isReadOnly;
         }
 
         private void ProcessAutoConnect(List<PowerBIInstance> instances)
@@ -245,11 +322,13 @@ namespace PBIPortWrapper
             {
                 bool isAuto = Convert.ToBoolean(row.Cells["colAuto"].Value);
                 string status = row.Cells["colStatus"].Value?.ToString();
-                string modelName = row.Cells["colModelName"].Value?.ToString();
                 
                 if (isAuto && status == "Ready")
                 {
-                    var instance = instances.FirstOrDefault(i => i.FileName == modelName);
+                    // Find instance
+                    int? pid = row.Tag as int?;
+                    var instance = instances.FirstOrDefault(i => i.ProcessId == pid);
+                    
                     if (instance != null)
                     {
                         int fixedPort = Convert.ToInt32(row.Cells["colFixedPort"].Value);
@@ -265,7 +344,6 @@ namespace PBIPortWrapper
             {
                 if (_proxyManager.IsRunning(fixedPort)) return;
 
-                // Check if port is valid
                 if (fixedPort < 1024 || fixedPort > 65535)
                 {
                     LogMessage($"Invalid port {fixedPort} for {instance.FileName}");
@@ -276,9 +354,7 @@ namespace PBIPortWrapper
 
                 if (allowNetwork)
                 {
-                    // Ensure firewall rule exists (simple check/add)
-                    // In a real app, we might want to check specifically, but re-running the command is usually safe or we can prompt.
-                    // For auto-start, we assume user has configured it.
+                    // Firewall check logic here if needed
                 }
 
                 await _proxyManager.StartProxyAsync(fixedPort, instance.Port, allowNetwork);
@@ -299,15 +375,26 @@ namespace PBIPortWrapper
 
             foreach (DataGridViewRow row in dataGridViewInstances.Rows)
             {
-                if (Convert.ToInt32(row.Cells["colFixedPort"].Value) == fixedPort)
+                if (row.Cells["colFixedPort"].Value != null && 
+                    Convert.ToInt32(row.Cells["colFixedPort"].Value) == fixedPort)
                 {
-                    row.Cells["colStatus"].Value = isRunning ? "Running" : "Ready";
-                    row.Cells["colStatus"].Style.ForeColor = isRunning ? Color.Green : Color.Black;
-                    row.Cells["colAction"].Value = isRunning ? "Stop" : "Start";
-                    
-                    // Lock editing while running
-                    row.Cells["colFixedPort"].ReadOnly = isRunning;
-                    row.Cells["colNetwork"].ReadOnly = isRunning;
+                    if (isRunning)
+                    {
+                        SetRowStatus(row, "Running", Color.Green, "Stop", true);
+                    }
+                    else
+                    {
+                        // Check if it's still a valid instance or just offline
+                        string pbiPort = row.Cells["colPbiPort"].Value?.ToString();
+                        if (!string.IsNullOrEmpty(pbiPort))
+                        {
+                            SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                        }
+                        else
+                        {
+                            SetRowStatus(row, "Offline", Color.Gray, "Delete", false);
+                        }
+                    }
                 }
             }
         }
@@ -320,21 +407,18 @@ namespace PBIPortWrapper
             {
                 var row = dataGridViewInstances.Rows[e.RowIndex];
                 string action = row.Cells["colAction"].Value?.ToString();
+                
+                if (string.IsNullOrEmpty(action)) return;
+
                 int fixedPort = Convert.ToInt32(row.Cells["colFixedPort"].Value);
-                string modelName = row.Cells["colModelName"].Value?.ToString();
 
                 if (action == "Start")
                 {
-                    var instance = _currentInstances.FirstOrDefault(i => i.FileName == modelName);
-                    // Fallback to finding by ProcessId if name mismatch
-                    if (instance == null && row.Tag is int pid)
-                    {
-                        instance = _currentInstances.FirstOrDefault(i => i.ProcessId == pid);
-                    }
+                    int? pid = row.Tag as int?;
+                    var instance = _currentInstances.FirstOrDefault(i => i.ProcessId == pid);
 
                     if (instance != null)
                     {
-                        // Check for duplicate ports
                         if (IsPortDuplicate(fixedPort, e.RowIndex))
                         {
                             MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -351,8 +435,6 @@ namespace PBIPortWrapper
                         }
 
                         StartProxySafe(instance, fixedPort, row);
-                        
-                        // Save rule on manual start
                         UpdateAndSaveRule(row);
                     }
                     else
@@ -363,6 +445,97 @@ namespace PBIPortWrapper
                 else if (action == "Stop")
                 {
                     _proxyManager.StopProxy(fixedPort);
+                }
+                else if (action == "Delete")
+                {
+                    // Delete logic directly from button
+                    DeleteConfiguration(row);
+                }
+            }
+        }
+
+        private void DataGridViewInstances_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                var hit = dataGridViewInstances.HitTest(e.X, e.Y);
+                if (hit.RowIndex >= 0)
+                {
+                    dataGridViewInstances.ClearSelection();
+                    dataGridViewInstances.Rows[hit.RowIndex].Selected = true;
+                }
+            }
+        }
+
+        private void OpenFolder_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewInstances.SelectedRows.Count > 0)
+            {
+                var row = dataGridViewInstances.SelectedRows[0];
+                string toolTip = row.Cells["colModelName"].ToolTipText;
+                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+                {
+                    string filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+                    if (File.Exists(filePath))
+                    {
+                        System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+                    }
+                }
+            }
+        }
+
+        private void CopyPath_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewInstances.SelectedRows.Count > 0)
+            {
+                var row = dataGridViewInstances.SelectedRows[0];
+                string toolTip = row.Cells["colModelName"].ToolTipText;
+                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+                {
+                    string filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+                    Clipboard.SetText(filePath);
+                }
+            }
+        }
+
+        private void DeleteConfiguration_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewInstances.SelectedRows.Count > 0)
+            {
+                DeleteConfiguration(dataGridViewInstances.SelectedRows[0]);
+            }
+        }
+
+        private void DeleteConfiguration(DataGridViewRow row)
+        {
+            string status = row.Cells["colStatus"].Value?.ToString();
+
+            if (status == "Running")
+            {
+                MessageBox.Show("Cannot delete configuration while proxy is running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string modelName = row.Cells["colModelName"].Value?.ToString();
+            string toolTip = row.Cells["colModelName"].ToolTipText;
+            string filePath = null;
+            if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+            {
+                filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+            }
+
+            var rule = _config.PortMappings.FirstOrDefault(r => 
+                (!string.IsNullOrEmpty(r.FilePath) && r.FilePath == filePath) || 
+                r.ModelNamePattern == modelName);
+
+            if (rule != null)
+            {
+                var result = MessageBox.Show($"Delete configuration for '{modelName}'?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (result == DialogResult.Yes)
+                {
+                    _config.PortMappings.Remove(rule);
+                    SaveConfiguration();
+                    RefreshInstances(); // Will remove the row if it's offline
                 }
             }
         }
@@ -424,6 +597,13 @@ namespace PBIPortWrapper
         private void UpdateAndSaveRule(DataGridViewRow row)
         {
             string modelName = row.Cells["colModelName"].Value?.ToString();
+            string toolTip = row.Cells["colModelName"].ToolTipText;
+            string filePath = null;
+            if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+            {
+                filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+            }
+            
             if (string.IsNullOrEmpty(modelName)) return;
 
             int fixedPort = 0;
@@ -436,16 +616,20 @@ namespace PBIPortWrapper
             bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
 
             // Update or Add rule
-            var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
+            var rule = _config.PortMappings.FirstOrDefault(r => 
+                (!string.IsNullOrEmpty(r.FilePath) && r.FilePath == filePath) || 
+                r.ModelNamePattern == modelName);
+
             if (rule != null)
             {
                 rule.FixedPort = fixedPort;
                 rule.AutoConnect = auto;
                 rule.AllowNetworkAccess = network;
+                rule.FilePath = filePath; // Ensure path is saved
             }
             else
             {
-                _config.PortMappings.Add(new PortMappingRule(modelName, fixedPort, auto, network));
+                _config.PortMappings.Add(new PortMappingRule(modelName, fixedPort, auto, network, filePath));
             }
 
             SaveConfiguration();
