@@ -38,17 +38,18 @@ namespace PBIPortWrapper
             }
 
             // Configure Column Ordering and Alignment
-            // Order: Model Name | PBI Port | Fixed Port | Auto | Network | Active | Action
+            // Order: Model Name | PBI Port | Fixed Port | Auto | Network | Action | Status | Active
             dataGridViewInstances.Columns["colModelName"].DisplayIndex = 0;
             dataGridViewInstances.Columns["colPbiPort"].DisplayIndex = 1;
             dataGridViewInstances.Columns["colFixedPort"].DisplayIndex = 2;
             dataGridViewInstances.Columns["colAuto"].DisplayIndex = 3;
             dataGridViewInstances.Columns["colNetwork"].DisplayIndex = 4;
-            dataGridViewInstances.Columns["colActive"].DisplayIndex = 5;
-            dataGridViewInstances.Columns["colAction"].DisplayIndex = 6;
+            dataGridViewInstances.Columns["colAction"].DisplayIndex = 5;
+            dataGridViewInstances.Columns["colStatus"].DisplayIndex = 6;            
+            dataGridViewInstances.Columns["colActive"].DisplayIndex = 7;
 
-            // Center Content & Header: PBI Port, Fixed Port, Active
-            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colActive" })
+            // Center Content & Header: PBI Port, Fixed Port, Status, Active
+            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colStatus", "colActive" })
             {
                 dataGridViewInstances.Columns[colName].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
