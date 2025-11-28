@@ -24,14 +24,14 @@ namespace PBIPortWrapper
         {
             InitializeComponent();
 
-            this.Text = "Power BI Port Wrapper v0.3";
+            this.Text = "Power BI Port Wrapper v0.2";
 
             InitializeServices();
             InitializeEventHandlers();
             InitializeContextMenu();
             LoadConfiguration();
 
-            LogMessage("Power BI Port Wrapper v0.3");
+            LogMessage("Power BI Port Wrapper v0.2");
             LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
             LogMessage($"Log file: {_configManager.GetLogFilePath()}");
             LogMessage("");
@@ -172,6 +172,35 @@ namespace PBIPortWrapper
                         row.Cells["colFixedPort"].Value = null; 
                         row.Cells["colAuto"].Value = false;
                         row.Cells["colNetwork"].Value = false;
+                    }
+                }
+
+                // MERGE LOGIC: Check if this running row (which might have just been renamed from "Untitled")
+                // matches an existing "Offline" row. If so, merge them to prevent duplicates.
+                if (row != null)
+                {
+                    var offlineRow = dataGridViewInstances.Rows
+                        .Cast<DataGridViewRow>()
+                        .FirstOrDefault(r => 
+                            r != row && // Not the current row
+                            r.Tag == null && // Is Offline
+                            r.Cells["colModelName"].Value?.ToString() == instance.FileName); // Name matches
+
+                    if (offlineRow != null)
+                    {
+                        // Found a duplicate offline row. Merge config into the running instance.
+                        // We only merge if the running instance doesn't have a fixed port set yet, OR if we want to prioritize the saved config.
+                        // Let's prioritize the saved config from the offline row.
+                        
+                        if (offlineRow.Cells["colFixedPort"].Value != null)
+                            row.Cells["colFixedPort"].Value = offlineRow.Cells["colFixedPort"].Value;
+                            
+                        row.Cells["colAuto"].Value = offlineRow.Cells["colAuto"].Value;
+                        row.Cells["colNetwork"].Value = offlineRow.Cells["colNetwork"].Value;
+                        
+                        // Remove the offline row
+                        dataGridViewInstances.Rows.Remove(offlineRow);
+                        LogMessage($"Merged offline config for '{instance.FileName}' into running instance.");
                     }
                 }
 
@@ -472,9 +501,36 @@ namespace PBIPortWrapper
                     filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
                 }
 
-                if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                if (!string.IsNullOrEmpty(filePath))
                 {
-                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+                    try
+                    {
+                        if (File.Exists(filePath))
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
+                        }
+                        else if (Directory.Exists(filePath))
+                        {
+                            System.Diagnostics.Process.Start("explorer.exe", filePath);
+                        }
+                        else
+                        {
+                            // Try opening the directory of the file
+                            string dir = Path.GetDirectoryName(filePath);
+                            if (Directory.Exists(dir))
+                            {
+                                System.Diagnostics.Process.Start("explorer.exe", dir);
+                            }
+                            else
+                            {
+                                MessageBox.Show("Cannot open folder. Path does not exist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error opening folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
                 else
                 {
