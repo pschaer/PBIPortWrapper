@@ -80,7 +80,7 @@
             this.labelTitle.Name = "labelTitle";
             this.labelTitle.Size = new System.Drawing.Size(206, 25);
             this.labelTitle.TabIndex = 0;
-            this.labelTitle.Text = "Power BI Port Wrapper";
+            this.labelTitle.Text = "PBI Port Wrapper";
             // 
             // panelBottom
             // 
@@ -203,7 +203,7 @@
             this.Controls.Add(this.panelBottom);
             this.Controls.Add(this.panelTop);
             this.Name = "MainForm";
-            this.Text = "Power BI Port Wrapper";
+            this.Text = "PBI Port Wrapper";
             this.panelTop.ResumeLayout(false);
             this.panelTop.PerformLayout();
             this.panelBottom.ResumeLayout(false);

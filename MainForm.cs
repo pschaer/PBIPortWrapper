@@ -26,6 +26,40 @@ namespace PBIPortWrapper
 
             this.Text = "PBI Port Wrapper v0.2";
 
+            // Add Active Connections Column
+            if (!dataGridViewInstances.Columns.Contains("colActive"))
+            {
+                var colActive = new DataGridViewTextBoxColumn();
+                colActive.Name = "colActive";
+                colActive.HeaderText = "Active";
+                colActive.ReadOnly = true;
+                colActive.Width = 60;
+                dataGridViewInstances.Columns.Add(colActive);
+            }
+
+            // Configure Column Ordering and Alignment
+            // Order: Model Name | PBI Port | Fixed Port | Auto | Network | Active | Action
+            dataGridViewInstances.Columns["colModelName"].DisplayIndex = 0;
+            dataGridViewInstances.Columns["colPbiPort"].DisplayIndex = 1;
+            dataGridViewInstances.Columns["colFixedPort"].DisplayIndex = 2;
+            dataGridViewInstances.Columns["colAuto"].DisplayIndex = 3;
+            dataGridViewInstances.Columns["colNetwork"].DisplayIndex = 4;
+            dataGridViewInstances.Columns["colActive"].DisplayIndex = 5;
+            dataGridViewInstances.Columns["colAction"].DisplayIndex = 6;
+
+            // Center Content & Header: PBI Port, Fixed Port, Active
+            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colActive" })
+            {
+                dataGridViewInstances.Columns[colName].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            }
+
+            // Center Header Only: Auto, Network, Action
+            foreach (var colName in new[] { "colAuto", "colNetwork", "colAction" })
+            {
+                dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            }
+
             InitializeServices();
             InitializeEventHandlers();
             InitializeContextMenu();
@@ -62,6 +96,11 @@ namespace PBIPortWrapper
             {
                 UpdateGridStatus(args.FixedPort, false);
                 LogMessage($"Stopped proxy on port {args.FixedPort}");
+            };
+
+            _proxyManager.OnProxyConnectionCountChanged += (sender, args) =>
+            {
+                UpdateActiveConnections(args.FixedPort, args.Count);
             };
         }
 
@@ -250,6 +289,9 @@ namespace PBIPortWrapper
                 if (fixedPort > 0 && _proxyManager.IsRunning(fixedPort))
                 {
                     SetRowStatus(row, "Running", Color.Green, "Stop", true);
+                    // Update active count if possible (or wait for event)
+                    int activeCount = _proxyManager.GetActiveConnections(fixedPort);
+                    row.Cells["colActive"].Value = activeCount;
                 }
                 else
                 {
@@ -258,6 +300,8 @@ namespace PBIPortWrapper
                         SetRowStatus(row, "Ready", Color.Black, "Start", false);
                     else
                         SetRowStatus(row, "Ready", Color.Black, "Set Port", false); // Placeholder text, button disabled
+                    
+                    row.Cells["colActive"].Value = "";
                 }
 
                 processedRows.Add(row);
@@ -300,6 +344,7 @@ namespace PBIPortWrapper
                     row.Cells["colModelName"].ToolTipText = $"Name: {modelName}\n(Offline)";
                     
                     SetRowStatus(row, "Offline", Color.Gray, "Remove", false); 
+                    row.Cells["colActive"].Value = "";
                 }
                 else
                 {
@@ -338,6 +383,7 @@ namespace PBIPortWrapper
                     row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
                     row.Cells["colPbiPort"].Value = "";
                     SetRowStatus(row, "Offline", Color.Gray, "Remove", false);
+                    row.Cells["colActive"].Value = "";
                 }
             }
         }
@@ -428,6 +474,9 @@ namespace PBIPortWrapper
                     if (isRunning)
                     {
                         SetRowStatus(row, "Running", Color.Green, "Stop", true);
+                        // Initial active count
+                        int activeCount = _proxyManager.GetActiveConnections(fixedPort);
+                        row.Cells["colActive"].Value = activeCount;
                     }
                     else
                     {
@@ -441,7 +490,26 @@ namespace PBIPortWrapper
                         {
                             SetRowStatus(row, "Offline", Color.Gray, "Remove", false);
                         }
+                        row.Cells["colActive"].Value = "";
                     }
+                }
+            }
+        }
+
+        private void UpdateActiveConnections(int fixedPort, int count)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => UpdateActiveConnections(fixedPort, count)));
+                return;
+            }
+
+            foreach (DataGridViewRow row in dataGridViewInstances.Rows)
+            {
+                if (row.Cells["colFixedPort"].Value != null && 
+                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int fp) && fp == fixedPort)
+                {
+                    row.Cells["colActive"].Value = count;
                 }
             }
         }
@@ -493,6 +561,17 @@ namespace PBIPortWrapper
                 }
                 else if (action == "Stop")
                 {
+                    // Check for active connections
+                    int activeCount = _proxyManager.GetActiveConnections(fixedPort);
+                    if (activeCount > 0)
+                    {
+                        var result = MessageBox.Show(
+                            $"There are {activeCount} active connection(s) to this proxy.\nStopping it will disconnect them.\n\nAre you sure you want to stop?", 
+                            "Active Connections Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        
+                        if (result != DialogResult.Yes) return;
+                    }
+
                     _proxyManager.StopProxy(fixedPort);
                 }
                 else if (action == "Remove")
@@ -704,25 +783,31 @@ namespace PBIPortWrapper
             }
 
             // If port is 0 or empty, do not save/add rule yet? 
-            // Or remove rule if it exists?
-            // User said: "the setting of a port is a clear trigger for a configuration entry"
+            // Actually, we might want to save preferences even if port is not set?
+            // But usually we save when we have a port.
+            
             if (fixedPort == 0) return;
 
-            bool auto = Convert.ToBoolean(row.Cells["colAuto"].Value);
-            bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
+            bool autoConnect = Convert.ToBoolean(row.Cells["colAuto"].Value);
+            bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
 
-            // Update or Add rule
             var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
-
-            if (rule != null)
+            if (rule == null)
             {
-                rule.FixedPort = fixedPort;
-                rule.AutoConnect = auto;
-                rule.AllowNetworkAccess = network;
+                rule = new PortMappingRule
+                {
+                    ModelNamePattern = modelName,
+                    FixedPort = fixedPort,
+                    AutoConnect = autoConnect,
+                    AllowNetworkAccess = allowNetwork
+                };
+                _config.PortMappings.Add(rule);
             }
             else
             {
-                _config.PortMappings.Add(new PortMappingRule(modelName, fixedPort, auto, network));
+                rule.FixedPort = fixedPort;
+                rule.AutoConnect = autoConnect;
+                rule.AllowNetworkAccess = allowNetwork;
             }
 
             SaveConfiguration();
@@ -732,21 +817,28 @@ namespace PBIPortWrapper
         {
             try
             {
-                string logPath = _configManager.GetAppDataPath();
-                System.Diagnostics.Process.Start("explorer.exe", logPath);
+                string logFile = _configManager.GetLogFilePath();
+                if (File.Exists(logFile))
+                {
+                    System.Diagnostics.Process.Start("notepad.exe", logFile);
+                }
+                else
+                {
+                    MessageBox.Show("Log file does not exist yet.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
             }
             catch (Exception ex)
             {
-                LogMessage($"Error opening log folder: {ex.Message}");
+                MessageBox.Show($"Error opening log file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (_proxyManager.HasRunningProxies())
+            // Stop all proxies
+            if (_proxyManager.GetRunningPorts().Any())
             {
-                var result = MessageBox.Show("There are active proxies running. Are you sure you want to exit?", 
-                                             "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                var result = MessageBox.Show("Proxies are currently running. Are you sure you want to exit?", "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (result == DialogResult.No)
                 {
                     e.Cancel = true;
@@ -766,7 +858,7 @@ namespace PBIPortWrapper
                 return;
             }
 
-            string timestampedMessage = $"[{DateTime.Now:HH:mm:ss}] {message}";
+            string timestampedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
             textBoxLog.AppendText($"{timestampedMessage}{Environment.NewLine}");
             
             try

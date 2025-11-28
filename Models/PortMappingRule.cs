@@ -9,6 +9,10 @@ namespace PBIPortWrapper.Models
         public bool AutoConnect { get; set; }
         public bool AllowNetworkAccess { get; set; }
 
+        public PortMappingRule()
+        {
+        }
+
         public PortMappingRule(string modelNamePattern, int fixedPort, bool autoConnect, bool allowNetworkAccess)
         {
             ModelNamePattern = modelNamePattern;

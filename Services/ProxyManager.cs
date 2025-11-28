@@ -14,6 +14,8 @@ namespace PBIPortWrapper.Services
         public event EventHandler<ProxyEventArgs> OnProxyStopped;
         public event EventHandler<string> OnLog;
         public event EventHandler<string> OnError;
+        public event EventHandler<(int FixedPort, int Count)> OnProxyConnectionCountChanged;
+
         public ProxyManager()
         {
             _proxies = new ConcurrentDictionary<int, TcpProxyService>();
@@ -28,8 +30,12 @@ namespace PBIPortWrapper.Services
             }
 
             var proxy = new TcpProxyService();
-            proxy.OnLog += (s, msg) => OnLog?.Invoke(this, msg);
-            proxy.OnError += (s, msg) => OnError?.Invoke(this, msg);
+            // Prefix log messages with the port number for clarity
+            proxy.OnLog += (s, msg) => OnLog?.Invoke(this, $"[Port {fixedPort}] {msg}");
+            proxy.OnError += (s, msg) => OnError?.Invoke(this, $"[Port {fixedPort}] {msg}");
+            
+            // Bubble up connection count changes
+            proxy.OnConnectionCountChanged += (s, count) => OnProxyConnectionCountChanged?.Invoke(this, (fixedPort, count));
 
             _proxies[fixedPort] = proxy;
 
@@ -80,6 +86,11 @@ namespace PBIPortWrapper.Services
                 return proxy.ActiveConnections;
             }
             return 0;
+        }
+
+        public IEnumerable<int> GetRunningPorts()
+        {
+            return _proxies.Keys.ToList();
         }
     }
 

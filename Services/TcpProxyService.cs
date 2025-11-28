@@ -22,6 +22,7 @@ namespace PBIPortWrapper.Services
 
         public event EventHandler<string> OnLog;
         public event EventHandler<string> OnError;
+        public event EventHandler<int> OnConnectionCountChanged;
 
         public async Task StartAsync(int listenPort, int targetPort, bool allowNetworkAccess)
         {
@@ -85,6 +86,7 @@ namespace PBIPortWrapper.Services
                 {
                     var client = await _listener.AcceptTcpClientAsync();
                     Interlocked.Increment(ref _activeConnections);
+                    OnConnectionCountChanged?.Invoke(this, _activeConnections);
                     Log($"Client connected from {client.Client.RemoteEndPoint} (Active: {_activeConnections})");
 
                     _ = Task.Run(() => HandleClientAsync(client, cancellationToken), cancellationToken);
@@ -143,6 +145,7 @@ namespace PBIPortWrapper.Services
             finally
             {
                 Interlocked.Decrement(ref _activeConnections);
+                OnConnectionCountChanged?.Invoke(this, _activeConnections);
                 Log($"Client disconnected (Active: {_activeConnections})");
                 target?.Dispose();
             }
