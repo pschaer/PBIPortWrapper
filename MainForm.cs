@@ -24,14 +24,17 @@ namespace PBIPortWrapper
         {
             InitializeComponent();
 
-            this.Text = "Power BI Port Wrapper v0.2";
+            this.Text = "PBI Port Wrapper v0.2";
 
             InitializeServices();
             InitializeEventHandlers();
             InitializeContextMenu();
             LoadConfiguration();
+            
+            // Hide Refresh button as it's redundant
+            buttonRefresh.Visible = false;
 
-            LogMessage("Power BI Port Wrapper v0.2");
+            LogMessage("PBI Port Wrapper v0.2");
             LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
             LogMessage($"Log file: {_configManager.GetLogFilePath()}");
             LogMessage("");
@@ -64,7 +67,7 @@ namespace PBIPortWrapper
 
         private void InitializeEventHandlers()
         {
-            buttonRefresh.Click += (s, e) => RefreshInstances();
+            // buttonRefresh.Click += (s, e) => RefreshInstances(); // Removed
             buttonOpenLogs.Click += ButtonOpenLogs_Click;
             
             dataGridViewInstances.CellContentClick += DataGridViewInstances_CellContentClick;
@@ -160,7 +163,29 @@ namespace PBIPortWrapper
                     // Apply saved rule if exists
                     var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
 
+                    // CHECK: Is this rule already active on another row?
+                    bool isRuleActive = false;
                     if (rule != null)
+                    {
+                        foreach (DataGridViewRow r in dataGridViewInstances.Rows)
+                        {
+                            if (r == row) continue; // Should not happen as row is new, but for safety
+                            
+                            string rName = r.Cells["colModelName"].Value?.ToString();
+                            if (rName == instance.FileName)
+                            {
+                                // Check if it has a port assigned (meaning it's using the config)
+                                if (r.Cells["colFixedPort"].Value != null && 
+                                    !string.IsNullOrEmpty(r.Cells["colFixedPort"].Value.ToString()))
+                                {
+                                    isRuleActive = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (rule != null && !isRuleActive)
                     {
                         row.Cells["colFixedPort"].Value = rule.FixedPort;
                         row.Cells["colAuto"].Value = rule.AutoConnect;
@@ -168,10 +193,15 @@ namespace PBIPortWrapper
                     }
                     else
                     {
-                        // Default: Empty port for new instances
+                        // Default: Empty port for new instances (or if rule is already in use)
                         row.Cells["colFixedPort"].Value = null; 
                         row.Cells["colAuto"].Value = false;
                         row.Cells["colNetwork"].Value = false;
+                        
+                        if (isRuleActive)
+                        {
+                            LogMessage($"Duplicate instance detected for '{instance.FileName}'. Configuration not applied to avoid conflict.");
+                        }
                     }
                 }
 
@@ -663,6 +693,9 @@ namespace PBIPortWrapper
             string modelName = row.Cells["colModelName"].Value?.ToString();
             
             if (string.IsNullOrEmpty(modelName)) return;
+            
+            // Prevent saving "Untitled" to config
+            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
 
             int fixedPort = 0;
             if (row.Cells["colFixedPort"].Value != null)
