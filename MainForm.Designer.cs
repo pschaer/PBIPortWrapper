@@ -39,6 +39,12 @@
             this.panelFill = new System.Windows.Forms.Panel();
             this.dataGridViewInstances = new System.Windows.Forms.DataGridView();
             this.timerUpdate = new System.Windows.Forms.Timer(this.components);
+            this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
+            this.contextMenuStripTray = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.toolStripMenuItemShow = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItemExit = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextMenuStripGrid = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.toolStripMenuItemCopy = new System.Windows.Forms.ToolStripMenuItem();
             this.colModelName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colPbiPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFixedPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -50,6 +56,8 @@
             this.panelBottom.SuspendLayout();
             this.panelFill.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewInstances)).BeginInit();
+            this.contextMenuStripTray.SuspendLayout();
+            this.contextMenuStripGrid.SuspendLayout();
             this.SuspendLayout();
             // 
             // panelTop
@@ -154,6 +162,49 @@
             this.timerUpdate.Enabled = true;
             this.timerUpdate.Interval = 5000;
             // 
+            // notifyIcon
+            // 
+            this.notifyIcon.ContextMenuStrip = this.contextMenuStripTray;
+            this.notifyIcon.Text = "PBI Port Wrapper";
+            this.notifyIcon.Visible = true;
+            this.notifyIcon.DoubleClick += new System.EventHandler(this.NotifyIcon_DoubleClick);
+            // 
+            // contextMenuStripTray
+            // 
+            this.contextMenuStripTray.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItemShow,
+            this.toolStripMenuItemExit});
+            this.contextMenuStripTray.Name = "contextMenuStripTray";
+            this.contextMenuStripTray.Size = new System.Drawing.Size(104, 48);
+            // 
+            // toolStripMenuItemShow
+            // 
+            this.toolStripMenuItemShow.Name = "toolStripMenuItemShow";
+            this.toolStripMenuItemShow.Size = new System.Drawing.Size(103, 22);
+            this.toolStripMenuItemShow.Text = "Show";
+            this.toolStripMenuItemShow.Click += new System.EventHandler(this.ToolStripMenuItemShow_Click);
+            // 
+            // toolStripMenuItemExit
+            // 
+            this.toolStripMenuItemExit.Name = "toolStripMenuItemExit";
+            this.toolStripMenuItemExit.Size = new System.Drawing.Size(103, 22);
+            this.toolStripMenuItemExit.Text = "Exit";
+            this.toolStripMenuItemExit.Click += new System.EventHandler(this.ToolStripMenuItemExit_Click);
+            // 
+            // contextMenuStripGrid
+            // 
+            this.contextMenuStripGrid.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripMenuItemCopy});
+            this.contextMenuStripGrid.Name = "contextMenuStripGrid";
+            this.contextMenuStripGrid.Size = new System.Drawing.Size(200, 26);
+            // 
+            // toolStripMenuItemCopy
+            // 
+            this.toolStripMenuItemCopy.Name = "toolStripMenuItemCopy";
+            this.toolStripMenuItemCopy.Size = new System.Drawing.Size(199, 22);
+            this.toolStripMenuItemCopy.Text = "Copy Connection String";
+            this.toolStripMenuItemCopy.Click += new System.EventHandler(this.ToolStripMenuItemCopy_Click);
+            // 
             // colModelName
             // 
             this.colModelName.HeaderText = "Model Name";
@@ -210,6 +261,8 @@
             this.panelBottom.PerformLayout();
             this.panelFill.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewInstances)).EndInit();
+            this.contextMenuStripTray.ResumeLayout(false);
+            this.contextMenuStripGrid.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -225,6 +278,12 @@
         private System.Windows.Forms.TextBox textBoxLog;
         private System.Windows.Forms.Button buttonOpenLogs;
         private System.Windows.Forms.Timer timerUpdate;
+        private System.Windows.Forms.NotifyIcon notifyIcon;
+        private System.Windows.Forms.ContextMenuStrip contextMenuStripTray;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemShow;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemExit;
+        private System.Windows.Forms.ContextMenuStrip contextMenuStripGrid;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemCopy;
         private System.Windows.Forms.DataGridViewTextBoxColumn colModelName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colPbiPort;
         private System.Windows.Forms.DataGridViewTextBoxColumn colFixedPort;

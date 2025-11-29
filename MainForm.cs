@@ -18,13 +18,30 @@ namespace PBIPortWrapper
         
         // Cache of current instances to track state
         private List<PowerBIInstance> _currentInstances = new List<PowerBIInstance>();
-        private ContextMenuStrip _contextMenuGrid;
+
 
         public MainForm()
         {
             InitializeComponent();
 
             this.Text = "PBI Port Wrapper v0.2";
+
+            // Set Icon
+            try 
+            { 
+                // Try loading from Resources folder (copied to output)
+                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "app_icon.png");
+                if (File.Exists(iconPath))
+                {
+                    using (var bmp = new Bitmap(iconPath))
+                    {
+                        var icon = Icon.FromHandle(bmp.GetHicon());
+                        this.Icon = icon;
+                        this.notifyIcon.Icon = icon;
+                    }
+                }
+            } 
+            catch { }
 
             // Add Active Connections Column
             if (!dataGridViewInstances.Columns.Contains("colActive"))
@@ -118,21 +135,27 @@ namespace PBIPortWrapper
             
             timerUpdate.Tick += (s, e) => RefreshInstances();
             this.FormClosing += MainForm_FormClosing;
+            this.Resize += MainForm_Resize;
+            
+            notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
+            toolStripMenuItemShow.Click += ToolStripMenuItemShow_Click;
+            toolStripMenuItemExit.Click += ToolStripMenuItemExit_Click;
+            toolStripMenuItemCopy.Click += ToolStripMenuItemCopy_Click;
         }
 
         private void InitializeContextMenu()
         {
-            _contextMenuGrid = new ContextMenuStrip();
-            
+            // Use the ContextMenuStrip defined in Designer (contextMenuStripGrid)
             var openFolderItem = new ToolStripMenuItem("Open Folder");
             openFolderItem.Click += OpenFolder_Click;
-            _contextMenuGrid.Items.Add(openFolderItem);
+            contextMenuStripGrid.Items.Add(openFolderItem);
 
             var copyPathItem = new ToolStripMenuItem("Copy Path");
             copyPathItem.Click += CopyPath_Click;
-            _contextMenuGrid.Items.Add(copyPathItem);
+            contextMenuStripGrid.Items.Add(copyPathItem);
             
-            dataGridViewInstances.ContextMenuStrip = _contextMenuGrid;
+            // Assign to Grid
+            dataGridViewInstances.ContextMenuStrip = contextMenuStripGrid;
             dataGridViewInstances.MouseDown += DataGridViewInstances_MouseDown;
         }
 
@@ -524,11 +547,27 @@ namespace PBIPortWrapper
                 var row = dataGridViewInstances.Rows[e.RowIndex];
                 string action = row.Cells["colAction"].Value?.ToString();
                 
-                if (string.IsNullOrEmpty(action) || action == "Set Port") return; 
+                if (string.IsNullOrEmpty(action)) return; 
 
                 int fixedPort = 0;
                 if (row.Cells["colFixedPort"].Value != null)
                     int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+
+                if (action == "Set Port")
+                {
+                    if (fixedPort > 0)
+                    {
+                        if (IsPortDuplicate(fixedPort, e.RowIndex))
+                        {
+                            MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        UpdateAndSaveRule(row);
+                        // Update UI to show "Start"
+                        SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                    }
+                    return;
+                }
 
                 if (action == "Start")
                 {
@@ -592,6 +631,7 @@ namespace PBIPortWrapper
                 {
                     dataGridViewInstances.ClearSelection();
                     dataGridViewInstances.Rows[hit.RowIndex].Selected = true;
+                    contextMenuStripGrid.Show(dataGridViewInstances, e.Location);
                 }
             }
         }
@@ -753,7 +793,19 @@ namespace PBIPortWrapper
 
         private void DataGridViewInstances_CellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
-             UpdateAndSaveRule(dataGridViewInstances.Rows[e.RowIndex]);
+             var row = dataGridViewInstances.Rows[e.RowIndex];
+             UpdateAndSaveRule(row);
+             
+             // Update UI Status immediately if port is valid
+             if (row.Cells["colFixedPort"].Value != null && 
+                 int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int port) && port > 0)
+             {
+                 // Only update if not running
+                 if (!_proxyManager.IsRunning(port))
+                 {
+                     SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                 }
+             }
         }
         
         private void DataGridViewInstances_CellValueChanged(object sender, DataGridViewCellEventArgs e)
@@ -849,6 +901,70 @@ namespace PBIPortWrapper
 
             _proxyManager.StopAll();
             SaveConfiguration();
+        }
+
+        private void MainForm_Resize(object sender, EventArgs e)
+        {
+            if (this.WindowState == FormWindowState.Minimized)
+            {
+                this.Hide();
+                notifyIcon.Visible = true;
+            }
+        }
+
+        private void NotifyIcon_DoubleClick(object sender, EventArgs e)
+        {
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+            notifyIcon.Visible = false;
+        }
+
+        private void ToolStripMenuItemShow_Click(object sender, EventArgs e)
+        {
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+            notifyIcon.Visible = false;
+        }
+
+        private void ToolStripMenuItemExit_Click(object sender, EventArgs e)
+        {
+            // Trigger form closing logic
+            this.Close();
+        }
+
+        private void ToolStripMenuItemCopy_Click(object sender, EventArgs e)
+        {
+            if (dataGridViewInstances.SelectedRows.Count > 0)
+            {
+                var row = dataGridViewInstances.SelectedRows[0];
+                int fixedPort = 0;
+                if (row.Cells["colFixedPort"].Value != null)
+                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+
+                if (fixedPort > 0)
+                {
+                    bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
+                    string connectionString = $"localhost:{fixedPort}";
+
+                    if (allowNetwork)
+                    {
+                        try
+                        {
+                            // Get primary IP
+                            string hostName = System.Net.Dns.GetHostName();
+                            var ipEntry = System.Net.Dns.GetHostEntry(hostName);
+                            var ip = ipEntry.AddressList.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                            if (ip != null)
+                            {
+                                connectionString = $"{ip}:{fixedPort}";
+                            }
+                        }
+                        catch { }
+                    }
+
+                    Clipboard.SetText(connectionString);
+                }
+            }
         }
 
         private void LogMessage(string message)
