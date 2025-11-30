@@ -30,7 +30,7 @@ namespace PBIPortWrapper.Presenters
             _setRowStatus = setRowStatus;
         }
 
-        public void RefreshGrid(List<PowerBIInstance> instances)
+                        public void RefreshGrid(List<PowerBIInstance> instances)
         {
             var processedRows = new HashSet<DataGridViewRow>();
 
@@ -197,9 +197,9 @@ namespace PBIPortWrapper.Presenters
                 }
             }
 
-            foreach (var row in rowsToRemove)
+                        foreach (var gridRow in rowsToRemove)
             {
-                _dataGridView.Rows.Remove(row);
+                _dataGridView.Rows.Remove(gridRow);
             }
             
             // 3. Ensure all saved configs have a row

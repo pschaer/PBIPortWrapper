@@ -138,7 +138,7 @@ namespace PBIPortWrapper.Presenters
 
                     _proxyPresenter.StopProxy(fixedPort);
                 }
-                else if (action == "Remove")
+                                                else if (action == "Remove")
                 {
                     string status = row.Cells["colStatus"].Value?.ToString();
                     if (status == "Running")
