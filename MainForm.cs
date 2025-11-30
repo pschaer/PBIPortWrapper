@@ -137,10 +137,16 @@ namespace PBIPortWrapper
             this.FormClosing += MainForm_FormClosing;
             this.Resize += MainForm_Resize;
             
-            notifyIcon.DoubleClick += NotifyIcon_DoubleClick;
-            toolStripMenuItemShow.Click += ToolStripMenuItemShow_Click;
-            toolStripMenuItemExit.Click += ToolStripMenuItemExit_Click;
-            toolStripMenuItemCopy.Click += ToolStripMenuItemCopy_Click;
+            // Note: NotifyIcon and ContextMenu events are handled in Designer.cs
+
+            checkBoxMinimizeToTray.CheckedChanged += (s, e) => 
+            {
+                if (_config != null)
+                {
+                    _config.MinimizeToTray = checkBoxMinimizeToTray.Checked;
+                    SaveConfiguration();
+                }
+            };
         }
 
         private void InitializeContextMenu()
@@ -162,6 +168,10 @@ namespace PBIPortWrapper
         private void LoadConfiguration()
         {
             _config = _configManager.LoadConfiguration();
+            if (_config != null)
+            {
+                checkBoxMinimizeToTray.Checked = _config.MinimizeToTray;
+            }
         }
 
         private void SaveConfiguration()
@@ -389,7 +399,7 @@ namespace PBIPortWrapper
                 foreach (DataGridViewRow row in dataGridViewInstances.Rows)
                 {
                     string rowName = row.Cells["colModelName"].Value?.ToString();
-                    if (rule.ModelNamePattern == rowName)
+                    if (rowName == rule.ModelNamePattern)
                     {
                         exists = true;
                         break;
@@ -399,7 +409,8 @@ namespace PBIPortWrapper
                 if (!exists)
                 {
                     int rowIndex = dataGridViewInstances.Rows.Add();
-                    var row = dataGridViewInstances.Rows[rowIndex];
+                    DataGridViewRow row = dataGridViewInstances.Rows[rowIndex];
+                    
                     row.Cells["colModelName"].Value = rule.ModelNamePattern;
                     row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\n(Offline)";
                     row.Cells["colFixedPort"].Value = rule.FixedPort;
@@ -905,7 +916,7 @@ namespace PBIPortWrapper
 
         private void MainForm_Resize(object sender, EventArgs e)
         {
-            if (this.WindowState == FormWindowState.Minimized)
+            if (this.WindowState == FormWindowState.Minimized && checkBoxMinimizeToTray.Checked)
             {
                 this.Hide();
                 notifyIcon.Visible = true;

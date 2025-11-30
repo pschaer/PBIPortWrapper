@@ -31,6 +31,7 @@
             this.components = new System.ComponentModel.Container();
             System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
             this.panelTop = new System.Windows.Forms.Panel();
+            this.checkBoxMinimizeToTray = new System.Windows.Forms.CheckBox();
             this.buttonRefresh = new System.Windows.Forms.Button();
             this.labelTitle = new System.Windows.Forms.Label();
             this.panelBottom = new System.Windows.Forms.Panel();
@@ -62,6 +63,7 @@
             // 
             // panelTop
             // 
+            this.panelTop.Controls.Add(this.checkBoxMinimizeToTray);
             this.panelTop.Controls.Add(this.buttonRefresh);
             this.panelTop.Controls.Add(this.labelTitle);
             this.panelTop.Dock = System.Windows.Forms.DockStyle.Top;
@@ -79,6 +81,18 @@
             this.buttonRefresh.TabIndex = 1;
             this.buttonRefresh.Text = "Refresh";
             this.buttonRefresh.UseVisualStyleBackColor = true;
+            // 
+            // checkBoxMinimizeToTray
+            // 
+            this.checkBoxMinimizeToTray.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.checkBoxMinimizeToTray.AutoSize = true;
+            this.checkBoxMinimizeToTray.Location = new System.Drawing.Point(580, 24);
+            this.checkBoxMinimizeToTray.Name = "checkBoxMinimizeToTray";
+            this.checkBoxMinimizeToTray.Size = new System.Drawing.Size(111, 19);
+            this.checkBoxMinimizeToTray.TabIndex = 2;
+            this.checkBoxMinimizeToTray.Text = "Minimize to Tray";
+            this.checkBoxMinimizeToTray.UseVisualStyleBackColor = true;
+            // 
             // 
             // labelTitle
             // 
@@ -181,7 +195,7 @@
             // 
             this.toolStripMenuItemShow.Name = "toolStripMenuItemShow";
             this.toolStripMenuItemShow.Size = new System.Drawing.Size(103, 22);
-            this.toolStripMenuItemShow.Text = "Show";
+            this.toolStripMenuItemShow.Text = "Restore";
             this.toolStripMenuItemShow.Click += new System.EventHandler(this.ToolStripMenuItemShow_Click);
             // 
             // toolStripMenuItemExit
@@ -274,6 +288,7 @@
         private System.Windows.Forms.Panel panelFill;
         private System.Windows.Forms.DataGridView dataGridViewInstances;
         private System.Windows.Forms.Label labelTitle;
+        private System.Windows.Forms.CheckBox checkBoxMinimizeToTray;
         private System.Windows.Forms.Button buttonRefresh;
         private System.Windows.Forms.TextBox textBoxLog;
         private System.Windows.Forms.Button buttonOpenLogs;
