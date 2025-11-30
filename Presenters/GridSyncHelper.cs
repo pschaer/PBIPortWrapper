@@ -30,7 +30,12 @@ namespace PBIPortWrapper.Presenters
             _setRowStatus = setRowStatus;
         }
 
-                        public void RefreshGrid(List<PowerBIInstance> instances)
+                                public void RefreshGrid(List<PowerBIInstance> instances)
+        {
+            RefreshGrid(instances, _config);
+        }
+
+                public void RefreshGrid(List<PowerBIInstance> instances, ProxyConfiguration config)
         {
             var processedRows = new HashSet<DataGridViewRow>();
 
@@ -62,7 +67,7 @@ namespace PBIPortWrapper.Presenters
                     row = _dataGridView.Rows[rowIndex];
                     
                     // Apply saved rule if exists
-                    var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
+                    var rule = config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
 
                     // CHECK: Is this rule already active on another row?
                     bool isRuleActive = false;
@@ -180,7 +185,7 @@ namespace PBIPortWrapper.Presenters
 
                 string modelName = row.Cells["colModelName"].Value?.ToString();
                 
-                var rule = _config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
+                var rule = config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
 
                 if (rule != null)
                 {
@@ -202,8 +207,8 @@ namespace PBIPortWrapper.Presenters
                 _dataGridView.Rows.Remove(gridRow);
             }
             
-            // 3. Ensure all saved configs have a row
-            foreach (var rule in _config.PortMappings)
+                        // 3. Ensure all saved configs have a row
+            foreach (var rule in config.PortMappings)
             {
                 bool exists = false;
                 foreach (DataGridViewRow row in _dataGridView.Rows)

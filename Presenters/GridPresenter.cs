@@ -39,9 +39,14 @@ namespace PBIPortWrapper.Presenters
             );
         }
 
-        public void RefreshGrid(List<PowerBIInstance> instances)
+                public void RefreshGrid(List<PowerBIInstance> instances)
         {
             _syncHelper.RefreshGrid(instances);
+        }
+
+        public void RefreshGrid(List<PowerBIInstance> instances, ProxyConfiguration config)
+        {
+            _syncHelper.RefreshGrid(instances, config);
         }
 
         public void SetRowStatus(DataGridViewRow row, string status, Color color, string actionText, bool isReadOnly)

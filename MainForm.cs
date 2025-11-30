@@ -249,17 +249,14 @@ namespace PBIPortWrapper
             dataGridViewInstances.MouseDown += _eventCoordinator.OnMouseDown;
         }
 
-                private void RefreshInstances()
+                        private void RefreshInstances()
         {
             if (!_detector.IsWorkspacePathValid()) return;
-
-            // Reload configuration from disk to pick up any changes
-            _config = _configPresenter.LoadConfiguration();
 
             var detectedInstances = _detector.DetectRunningInstances();
             _currentInstances = detectedInstances;
 
-            _gridPresenter.RefreshGrid(detectedInstances);
+            _gridPresenter.RefreshGrid(detectedInstances, _config);
             _proxyPresenter.ProcessAutoConnect(detectedInstances, dataGridViewInstances);
         }
 
