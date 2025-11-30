@@ -23,6 +23,7 @@ namespace PBIPortWrapper
         private GridPresenter _gridPresenter;
         private ProxyPresenter _proxyPresenter;
         private ConfigPresenter _configPresenter;
+        private ViewEventCoordinator _eventCoordinator;
         
         // State
         private List<PowerBIInstance> _currentInstances = new List<PowerBIInstance>();
@@ -30,7 +31,7 @@ namespace PBIPortWrapper
         public MainForm()
         {
             InitializeComponent();
-            ConfigureGridColumns(); // Extracted from constructor
+            ConfigureGridColumns(); 
             
             // Set Icon
             try 
@@ -103,7 +104,7 @@ namespace PBIPortWrapper
 
             LogMessage("PBI Port Wrapper v0.2");
             LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
-            LogMessage($"Log file: {new ConfigurationManager().GetLogFilePath()}"); // Temp instance just for path
+            LogMessage($"Log file: {new ConfigurationManager().GetLogFilePath()}"); 
             LogMessage("");
         }
 
@@ -117,7 +118,6 @@ namespace PBIPortWrapper
             _proxyManager.OnLog += (sender, message) => LogMessage(message);
             _proxyManager.OnError += (sender, message) => LogMessage($"ERROR: {message}");
             
-            // Wire up ProxyManager events to GridPresenter
             _proxyManager.OnProxyStarted += (sender, args) => 
             {
                 _gridPresenter?.UpdateGridStatus(args.FixedPort, true);
@@ -138,14 +138,8 @@ namespace PBIPortWrapper
 
         private void InitializePresenters()
         {
-            // We need _config loaded before creating GridPresenter? 
-            // Actually GridPresenter takes _config.
-            // So we should load config first or pass the manager?
-            // The plan says ConfigPresenter loads it.
-            // So let's create ConfigPresenter first.
-            
             _configPresenter = new ConfigPresenter(_configManager, LogMessage);
-            _config = _configPresenter.LoadConfiguration(); // Load it here so we can pass it to GridPresenter
+            _config = _configPresenter.LoadConfiguration(); 
 
             _proxyPresenter = new ProxyPresenter(_proxyManager, _validationService, LogMessage);
             
@@ -160,12 +154,25 @@ namespace PBIPortWrapper
         private void InitializeEventHandlers()
         {
             buttonOpenLogs.Click += ButtonOpenLogs_Click;
+
+            _eventCoordinator = new ViewEventCoordinator(
+                dataGridViewInstances,
+                contextMenuStripGrid,
+                _proxyManager,
+                _validationService,
+                _gridPresenter,
+                _proxyPresenter,
+                _configPresenter,
+                () => _config,
+                () => _currentInstances,
+                RefreshInstances
+            );
             
-            dataGridViewInstances.CellContentClick += DataGridViewInstances_CellContentClick;
-            dataGridViewInstances.CellValueChanged += DataGridViewInstances_CellValueChanged;
-            dataGridViewInstances.CellEndEdit += DataGridViewInstances_CellEndEdit;
-            dataGridViewInstances.CellValidating += DataGridViewInstances_CellValidating;
-            dataGridViewInstances.CellEnter += DataGridViewInstances_CellEnter;
+            dataGridViewInstances.CellContentClick += _eventCoordinator.OnCellContentClick;
+            dataGridViewInstances.CellValueChanged += _eventCoordinator.OnCellValueChanged;
+            dataGridViewInstances.CellEndEdit += _eventCoordinator.OnCellEndEdit;
+            dataGridViewInstances.CellValidating += _eventCoordinator.OnCellValidating;
+            dataGridViewInstances.CellEnter += _eventCoordinator.OnCellEnter;
             
             timerUpdate.Tick += (s, e) => RefreshInstances();
             this.FormClosing += MainForm_FormClosing;
@@ -189,15 +196,15 @@ namespace PBIPortWrapper
         private void InitializeContextMenu()
         {
             var openFolderItem = new ToolStripMenuItem("Open Folder");
-            openFolderItem.Click += OpenFolder_Click;
+            openFolderItem.Click += _eventCoordinator.ContextMenuHandler.OnOpenFolderClick;
             contextMenuStripGrid.Items.Add(openFolderItem);
 
             var copyPathItem = new ToolStripMenuItem("Copy Path");
-            copyPathItem.Click += CopyPath_Click;
+            copyPathItem.Click += _eventCoordinator.ContextMenuHandler.OnCopyPathClick;
             contextMenuStripGrid.Items.Add(copyPathItem);
             
             dataGridViewInstances.ContextMenuStrip = contextMenuStripGrid;
-            dataGridViewInstances.MouseDown += DataGridViewInstances_MouseDown;
+            dataGridViewInstances.MouseDown += _eventCoordinator.OnMouseDown;
         }
 
         private void RefreshInstances()
@@ -209,248 +216,6 @@ namespace PBIPortWrapper
 
             _gridPresenter.RefreshGrid(detectedInstances);
             _proxyPresenter.ProcessAutoConnect(detectedInstances, dataGridViewInstances);
-        }
-
-        private async void DataGridViewInstances_CellContentClick(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex < 0) return;
-
-            if (dataGridViewInstances.Columns[e.ColumnIndex].Name == "colAction")
-            {
-                var row = dataGridViewInstances.Rows[e.RowIndex];
-                string action = row.Cells["colAction"].Value?.ToString();
-                
-                if (string.IsNullOrEmpty(action)) return; 
-
-                int fixedPort = 0;
-                if (row.Cells["colFixedPort"].Value != null)
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
-
-                if (action == "Set Port")
-                {
-                    if (fixedPort > 0)
-                    {
-                        if (_validationService.IsPortDuplicate(fixedPort, dataGridViewInstances, e.RowIndex))
-                        {
-                            MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-                        _configPresenter.UpdateAndSaveRule(row, _config);
-                        _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
-                    }
-                    return;
-                }
-
-                if (action == "Start")
-                {
-                    int? pid = row.Tag as int?;
-                    var instance = _currentInstances.FirstOrDefault(i => i.ProcessId == pid);
-
-                    if (instance != null)
-                    {
-                        if (_validationService.IsPortDuplicate(fixedPort, dataGridViewInstances, e.RowIndex))
-                        {
-                            MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-
-                        bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
-                        if (allowNetwork)
-                        {
-                            var result = MessageBox.Show(
-                                "Network Access is enabled for this instance.\nEnsure Windows Firewall allows inbound connections on port " + fixedPort + ".\n\nContinue?", 
-                                "Network Access", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                            if (result != DialogResult.Yes) return;
-                        }
-
-                        await _proxyPresenter.StartProxyAsync(instance, fixedPort, allowNetwork);
-                        _configPresenter.UpdateAndSaveRule(row, _config);
-                    }
-                    else
-                    {
-                        MessageBox.Show("Power BI instance not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                }
-                else if (action == "Stop")
-                {
-                    int activeCount = _proxyManager.GetActiveConnections(fixedPort);
-                    if (activeCount > 0)
-                    {
-                        var result = MessageBox.Show(
-                            $"There are {activeCount} active connection(s) to this proxy.\nStopping it will disconnect them.\n\nAre you sure you want to stop?", 
-                            "Active Connections Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                        
-                        if (result != DialogResult.Yes) return;
-                    }
-
-                    _proxyPresenter.StopProxy(fixedPort);
-                }
-                else if (action == "Remove")
-                {
-                    string status = row.Cells["colStatus"].Value?.ToString();
-                    if (status == "Running")
-                    {
-                        MessageBox.Show("Cannot remove configuration while proxy is running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-
-                    string modelName = row.Cells["colModelName"].Value?.ToString();
-                    var result = MessageBox.Show($"Remove configuration for '{modelName}'?", "Confirm Remove", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                    if (result == DialogResult.Yes)
-                    {
-                        _configPresenter.DeleteConfiguration(modelName, _config);
-                        RefreshInstances();
-                    }
-                }
-            }
-        }
-
-        private void DataGridViewInstances_CellValidating(object sender, DataGridViewCellValidatingEventArgs e)
-        {
-            if (dataGridViewInstances.Columns[e.ColumnIndex].Name == "colFixedPort")
-            {
-                var validation = _validationService.ValidatePortAssignment(e.FormattedValue.ToString(), dataGridViewInstances, e.RowIndex);
-                if (!validation.IsValid)
-                {
-                    e.Cancel = true;
-                    dataGridViewInstances.Rows[e.RowIndex].ErrorText = validation.ErrorMessage;
-                    if (validation.ErrorMessage.Contains("already assigned"))
-                    {
-                        MessageBox.Show(validation.ErrorMessage, "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
-                }
-                else
-                {
-                    dataGridViewInstances.Rows[e.RowIndex].ErrorText = string.Empty;
-                }
-            }
-        }
-
-        private void DataGridViewInstances_CellEndEdit(object sender, DataGridViewCellEventArgs e)
-        {
-             var row = dataGridViewInstances.Rows[e.RowIndex];
-             _configPresenter.UpdateAndSaveRule(row, _config);
-             
-             if (row.Cells["colFixedPort"].Value != null && 
-                 int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int port) && port > 0)
-             {
-                 if (!_proxyManager.IsRunning(port))
-                 {
-                     _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
-                 }
-             }
-        }
-        
-        private void DataGridViewInstances_CellValueChanged(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex >= 0)
-            {
-                string colName = dataGridViewInstances.Columns[e.ColumnIndex].Name;
-                if (colName == "colAuto" || colName == "colNetwork")
-                {
-                    _configPresenter.UpdateAndSaveRule(dataGridViewInstances.Rows[e.RowIndex], _config);
-                }
-            }
-        }
-
-        private void DataGridViewInstances_CellEnter(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex < 0) return;
-
-            if (dataGridViewInstances.Columns[e.ColumnIndex].Name == "colFixedPort")
-            {
-                var row = dataGridViewInstances.Rows[e.RowIndex];
-                if (row.Cells["colFixedPort"].Value == null || string.IsNullOrEmpty(row.Cells["colFixedPort"].Value.ToString()))
-                {
-                    // Suggest next available port
-                    int suggestedPort = 55555;
-                    while (_validationService.IsPortDuplicate(suggestedPort, dataGridViewInstances, e.RowIndex))
-                    {
-                        suggestedPort++;
-                    }
-                    row.Cells["colFixedPort"].Value = suggestedPort;
-                    
-                    _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
-                }
-            }
-        }
-
-        private void DataGridViewInstances_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                var hit = dataGridViewInstances.HitTest(e.X, e.Y);
-                if (hit.RowIndex >= 0)
-                {
-                    dataGridViewInstances.ClearSelection();
-                    dataGridViewInstances.Rows[hit.RowIndex].Selected = true;
-                    contextMenuStripGrid.Show(dataGridViewInstances, e.Location);
-                }
-            }
-        }
-
-        private void OpenFolder_Click(object sender, EventArgs e)
-        {
-            if (dataGridViewInstances.SelectedRows.Count > 0)
-            {
-                var row = dataGridViewInstances.SelectedRows[0];
-                string toolTip = row.Cells["colModelName"].ToolTipText;
-                string filePath = null;
-                
-                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
-                {
-                    filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
-                }
-
-                if (!string.IsNullOrEmpty(filePath))
-                {
-                    try
-                    {
-                        if (File.Exists(filePath))
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
-                        }
-                        else if (Directory.Exists(filePath))
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", filePath);
-                        }
-                        else
-                        {
-                            string dir = Path.GetDirectoryName(filePath);
-                            if (Directory.Exists(dir))
-                            {
-                                System.Diagnostics.Process.Start("explorer.exe", dir);
-                            }
-                            else
-                            {
-                                MessageBox.Show("Cannot open folder. Path does not exist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error opening folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("Cannot open folder. The file path is not available (instance might be offline).", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-            }
-        }
-
-        private void CopyPath_Click(object sender, EventArgs e)
-        {
-            if (dataGridViewInstances.SelectedRows.Count > 0)
-            {
-                var row = dataGridViewInstances.SelectedRows[0];
-                string toolTip = row.Cells["colModelName"].ToolTipText;
-                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
-                {
-                    string filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
-                    Clipboard.SetText(filePath);
-                }
-            }
         }
 
         private void ButtonOpenLogs_Click(object sender, EventArgs e)
@@ -519,36 +284,7 @@ namespace PBIPortWrapper
 
         private void ToolStripMenuItemCopy_Click(object sender, EventArgs e)
         {
-            if (dataGridViewInstances.SelectedRows.Count > 0)
-            {
-                var row = dataGridViewInstances.SelectedRows[0];
-                int fixedPort = 0;
-                if (row.Cells["colFixedPort"].Value != null)
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
-
-                if (fixedPort > 0)
-                {
-                    bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
-                    string connectionString = $"localhost:{fixedPort}";
-
-                    if (allowNetwork)
-                    {
-                        try
-                        {
-                            string hostName = System.Net.Dns.GetHostName();
-                            var ipEntry = System.Net.Dns.GetHostEntry(hostName);
-                            var ip = ipEntry.AddressList.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                            if (ip != null)
-                            {
-                                connectionString = $"{ip}:{fixedPort}";
-                            }
-                        }
-                        catch { }
-                    }
-
-                    Clipboard.SetText(connectionString);
-                }
-            }
+            _eventCoordinator.ContextMenuHandler.OnCopyConnectionStringClick(sender, e);
         }
 
         private void LogMessage(string message)

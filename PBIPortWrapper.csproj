@@ -1,5 +1,4 @@
-﻿
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net8.0-windows</TargetFramework>
@@ -30,4 +29,8 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>
+
+	<Target Name="EnforceCodeSizeLimits" AfterTargets="Build">
+		<Exec Command="powershell -Command &quot;$failed = $false; if (Test-Path 'MainForm.cs') { $c = (Get-Content 'MainForm.cs').Count; if ($c -gt 400) { Write-Host 'EXEC : error : MainForm.cs is too large (' $c ' lines). Limit is 400.'; $failed = $true } elseif ($c -gt 300) { Write-Host 'EXEC : warning : MainForm.cs is getting large (' $c ' lines). Consider refactoring (Limit 300).' } }; if (Test-Path 'Presenters') { Get-ChildItem 'Presenters\*.cs' | ForEach-Object { $c = (Get-Content $_.FullName).Count; if ($c -gt 250) { Write-Host 'EXEC : error : ' $_.Name ' is too large (' $c ' lines). Limit is 250.'; $failed = $true } } }; if ($failed) { exit 1 }&quot;" />
+	</Target>
 </Project>
