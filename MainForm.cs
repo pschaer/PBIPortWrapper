@@ -207,7 +207,7 @@ namespace PBIPortWrapper
             var detectedInstances = _detector.DetectRunningInstances();
             _currentInstances = detectedInstances;
 
-            _gridPresenter.SyncGridWithInstances(detectedInstances);
+            _gridPresenter.RefreshGrid(detectedInstances);
             _proxyPresenter.ProcessAutoConnect(detectedInstances, dataGridViewInstances);
         }
 

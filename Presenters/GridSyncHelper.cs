@@ -30,7 +30,7 @@ namespace PBIPortWrapper.Presenters
             _setRowStatus = setRowStatus;
         }
 
-        public void SyncGridWithInstances(List<PowerBIInstance> instances)
+        public void RefreshGrid(List<PowerBIInstance> instances)
         {
             var processedRows = new HashSet<DataGridViewRow>();
 

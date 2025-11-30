@@ -15,6 +15,9 @@ namespace PBIPortWrapper.Presenters
         private readonly DataGridView _dataGridView;
         private readonly ProxyManager _proxyManager;
         private readonly GridSyncHelper _syncHelper;
+        
+        // NOTE: Config is READ-ONLY in Presenter. Writes must go through ConfigPresenter.
+        // We don't store _config here anymore, it's in the helper.
 
         public GridPresenter(
             DataGridView dataGridView, 
@@ -36,9 +39,9 @@ namespace PBIPortWrapper.Presenters
             );
         }
 
-        public void SyncGridWithInstances(List<PowerBIInstance> instances)
+        public void RefreshGrid(List<PowerBIInstance> instances)
         {
-            _syncHelper.SyncGridWithInstances(instances);
+            _syncHelper.RefreshGrid(instances);
         }
 
         public void SetRowStatus(DataGridViewRow row, string status, Color color, string actionText, bool isReadOnly)
