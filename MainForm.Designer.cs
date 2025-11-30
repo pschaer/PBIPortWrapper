@@ -174,7 +174,7 @@
             // timerUpdate
             // 
             this.timerUpdate.Enabled = true;
-            this.timerUpdate.Interval = 5000;
+            this.timerUpdate.Interval = 3000;
             // 
             // notifyIcon
             // 

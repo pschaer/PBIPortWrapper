@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using PBIPortWrapper.Models;
 using PBIPortWrapper.Services;
@@ -12,12 +13,13 @@ namespace PBIPortWrapper
 {
     public partial class MainForm : Form
     {
-        // Services
+                // Services
         private PowerBIDetector _detector;
         private ProxyManager _proxyManager;
         private ConfigurationManager _configManager;
         private ValidationService _validationService;
         private ProxyConfiguration _config;
+        private FileSystemWatcher _portFileWatcher;
         
         // Presenters
         private GridPresenter _gridPresenter;
@@ -108,7 +110,7 @@ namespace PBIPortWrapper
             LogMessage("");
         }
 
-        private void InitializeServices()
+                private void InitializeServices()
         {
             _detector = new PowerBIDetector();
             _proxyManager = new ProxyManager();
@@ -134,6 +136,46 @@ namespace PBIPortWrapper
             {
                 _gridPresenter?.UpdateActiveConnections(args.FixedPort, args.Count);
             };
+
+            InitializePortFileWatcher();
+        }
+
+        private void InitializePortFileWatcher()
+        {
+            try
+            {
+                string workspacesPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    @"Microsoft\Power BI Desktop\AnalysisServicesWorkspaces"
+                );
+
+                if (!Directory.Exists(workspacesPath))
+                    return;
+
+                _portFileWatcher = new FileSystemWatcher(workspacesPath);
+                _portFileWatcher.Filter = "*.port.txt";
+                _portFileWatcher.IncludeSubdirectories = true;
+                _portFileWatcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
+
+                _portFileWatcher.Created += (s, e) =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PortFileWatcher] Port file created: {e.Name}");
+                    Task.Delay(500).ContinueWith(_ => RefreshInstances());
+                };
+
+                _portFileWatcher.Changed += (s, e) =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PortFileWatcher] Port file changed: {e.Name}");
+                    Task.Delay(500).ContinueWith(_ => RefreshInstances());
+                };
+
+                _portFileWatcher.EnableRaisingEvents = true;
+                LogMessage("Port file watcher initialized");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing port file watcher: {ex.Message}");
+            }
         }
 
         private void InitializePresenters()
@@ -238,8 +280,14 @@ namespace PBIPortWrapper
             }
         }
 
-        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+                private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (_portFileWatcher != null)
+            {
+                _portFileWatcher.EnableRaisingEvents = false;
+                _portFileWatcher.Dispose();
+            }
+
             if (_proxyManager.GetRunningPorts().Any())
             {
                 var result = MessageBox.Show("Proxies are currently running. Are you sure you want to exit?", "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);

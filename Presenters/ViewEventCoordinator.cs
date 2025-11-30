@@ -67,6 +67,20 @@ namespace PBIPortWrapper.Presenters
 
                 if (action == "Set Port")
                 {
+                    // Auto-populate Fixed Port with next available port if empty
+                    if (fixedPort == 0)
+                    {
+                        // Use same logic as OnCellEnter - suggest next available port starting from 55555
+                        int suggestedPort = 55555;
+                        while (_validationService.IsPortDuplicate(suggestedPort, _dataGridView, e.RowIndex))
+                        {
+                            suggestedPort++;
+                        }
+                        fixedPort = suggestedPort;
+                        row.Cells["colFixedPort"].Value = fixedPort;
+                    }
+                    
+                    // Validate and save the port configuration
                     if (fixedPort > 0)
                     {
                         if (_validationService.IsPortDuplicate(fixedPort, _dataGridView, e.RowIndex))
