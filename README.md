@@ -8,9 +8,9 @@ A TCP port forwarding proxy for Power BI Desktop that provides stable port acces
 ## 🎯 Problem Solved
 
 Power BI Desktop uses dynamic ports that change with each session, making it difficult to:
-- Connect from external tools consistently
-- Share connection information with team members
+- Connect from Excel or external tools consistently
 - Automate workflows that depend on local Power BI models
+- Share connection to other hosts on the network
 
 **PBI Port Wrapper** solves this by providing a stable, fixed port that forwards connections to the configured Power BI Desktop instance.
 
@@ -18,32 +18,13 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 
 ### Core Functionality
 - ✅ **Stable Port Forwarding** - Fixed port number (default: 55555) that doesn't change
-- ✅ **Instant Instance Detection** - Finds running Power BI Desktop instances automatically (FileSystemWatcher)
+- ✅ **Instance Detection** - Finds running Power BI Desktop instances automatically (FileSystemWatcher)
 - ✅ **Multi-Instance Support** - Forward multiple Power BI instances simultaneously
 - ✅ **Per-Instance Configuration** - Set fixed ports and network access per model
 - ✅ **Auto-Connect** - Automatically start forwarding for configured instances
 - ✅ **Local Connections** - Full Windows Authentication support
 - ✅ **Remote Connections** - Network access with explicit credentials
-
-### User Interface (v0.3)
-- ✅ **System Tray Integration** - Minimize to tray for background operation
-- ✅ **Copy Connection String** - One-click copy to clipboard for easy sharing
-- ✅ **Direct Port Configuration** - Set Port action button for quick assignment
-- ✅ **Professional Branding** - Application icon/logo fully integrated
-- ✅ **Optimized Layout** - Intelligent DataGrid column sizing
-- ✅ **External Tool Integration** - Register as Power BI Desktop External Tool for ribbon access
-
-### Logging & Diagnostics (v0.3)
-- ✅ **Structured Logging** - Clear log levels (DEBUG, INFO, WARNING, ERROR) with named categories
-- ✅ **Contextual Details** - Remote IPs, port mappings, model names tracked throughout
-- ✅ **Automatic Log Rotation** - Logs rotate at 5MB with retention (keeps 5 files)
-- ✅ **Connection Tracking** - Detailed logs of connections/disconnections with counts
-- ✅ **Exception Details** - Full stack traces for troubleshooting
-- ✅ **Thread-Safe** - Safe for concurrent use across multiple proxy threads
-
-### Code Quality (v0.3)
-- ✅ **MVP Architecture** - Clean MVP pattern with separated concerns
-- ✅ **Improved Refactoring** - Eliminated God Object pattern, better code organization
+- ✅ **Connection Tracking** - Number of connected clients
 
 
 ## 📋 Requirements
@@ -76,7 +57,7 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 - **System Tray** - Minimize to tray for background operation
 - **Copy Connection String Button** - One-click copy for easy sharing to DAX Studio, Excel, etc.
 - **Set Port Action Button** - Direct port configuration alternative to field editing
-- **App Logo** - Professional branding with integrated application icon
+- **App Logo** - Branding with integrated application icon
 - **Smart Column Layout** - Model Name column sized appropriately with responsive grid
 - **Instant Detection** - FileSystemWatcher provides real-time instance detection
 
@@ -132,13 +113,11 @@ To allow remote connections, run this PowerShell command as Administrator (adapt
 New-NetFirewallRule -DisplayName "PBI Port Wrapper" -Direction Inbound -LocalPort 55555 -Protocol TCP -Action Allow
 ```
 
-### System Tray Operation (v0.3)
+### System Tray Operation
 - Click minimize to keep application running in system tray
 - Double-click tray icon to restore window
-- Application continues forwarding connections while in tray
-- No performance impact from tray minimization
 
-### Install as Power BI Desktop External Tool (v0.3)
+### Install as Power BI Desktop External Tool
 
 You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-click launch directly from the ribbon:
 
@@ -159,53 +138,14 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 
 - **Configuration**: ```%APPDATA%\PBIPortWrapper\config.json```
 - **Logs**: ```%APPDATA%\PBIPortWrapper\log.txt``` 
-  - Automatically rotates at 5MB per file
-  - Keeps 5 historical log files
-  - Professional formatting with timestamps and log levels
-  - Named categories for contextual logging
-
-
-## 📊 Logging Details (v0.3)
-
-### Log Levels
-- **DEBUG** - Detailed diagnostic information
-- **INFO** - General informational messages
-- **WARNING** - Warning messages for potential issues
-- **ERROR** - Error messages with full exception details
-
-### Log Examples
-```
-[2025-12-01 14:23:45] [INFO] [ProxyManager] Starting proxy for Model_Sales on port 55555
-[2025-12-01 14:23:46] [INFO] [TcpProxyService] Client connected from 192.168.1.100:54321
-[2025-12-01 14:23:50] [INFO] [TcpProxyService] Active connections: 1
-[2025-12-01 14:23:55] [INFO] [ProxyManager] Client disconnected from 192.168.1.100
-```
-
-### Contextual Information Tracked
-- Remote IP addresses and ports
-- Model names and fixed port mappings
-- Connection count and lifecycle
-- Full exception stack traces for errors
-- Performance metrics
+  - Automatically rotates at 5MB per file, keeps 5 historical log files
 
 
 ## 🐛 Known Limitations (v0.3)
 
 - ⚠️ **Database name changes** when Power BI Desktop restarts - requires reconnection
 - ⚠️ **Network access setup** - manual Windows Firewall configuration required
-- ⚠️ **Auto-restart behavior** - When "Auto" mode is enabled, stopping a proxy will restart it on the next refresh cycle if the PBI instance is still running
-
-### Known Limitation Details: Auto-Restart Behavior
-
-When "Auto" checkbox is enabled, the proxy will automatically restart if:
-- PBI Port Wrapper is started and PBI Desktop instance is running, OR
-- PBI Port Wrapper is running and PBI Desktop instance is started
-
-**Current behavior**: Once enabled, auto mode will restart the proxy on every refresh cycle if status="Ready", even if you manually stopped it.
-
-**Workaround**: Disable the "Auto" checkbox before manually stopping a proxy if you want it to remain stopped.
-
-This is a known limitation due to simplified state tracking across refresh cycles. Future versions may implement proper state machine tracking.
+- ⚠️ **Auto prevents Stopping** - workaround: disable Auto to Stop an instance, then re-enable Auto
 
 
 ## 🗺️ Roadmap
@@ -237,7 +177,6 @@ This is a known limitation due to simplified state tracking across refresh cycle
 - Thread-safe concurrent logging
 
 ### v0.x (Future)
-- Enhanced auto-reconnect with proper state tracking
 - Better handling of Auto mode vs manual Stop
 - Additional configuration profiles
 - Performance optimizations
