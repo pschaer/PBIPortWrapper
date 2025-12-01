@@ -99,7 +99,7 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 1. Locate the `pbiportwrapper.pbitool.json` file in the installation folder
 2. Copy it to your Power BI Desktop external tools directory:
    ```
-   %APPDATA%\Microsoft\Power BI Desktop\External Tools
+   \Program Files (x86)\Common Files\Microsoft Shared\Power BI Desktop\External Tools
    ```
 3. Edit the JSON file and update the `path` field with the full path to `PBIPortWrapper.exe`:
    ```json

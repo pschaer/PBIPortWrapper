@@ -88,6 +88,16 @@ namespace PBIPortWrapper
             dataGridViewInstances.Columns["colStatus"].DisplayIndex = 6;            
             dataGridViewInstances.Columns["colActive"].DisplayIndex = 7;
 
+            // Issue #8: Make Model Name column roughly twice as large as other columns
+            dataGridViewInstances.Columns["colModelName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewInstances.Columns["colModelName"].FillWeight = 2.4f;
+            
+            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colAuto", "colNetwork", "colStatus", "colAction", "colActive" })
+            {
+                dataGridViewInstances.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                dataGridViewInstances.Columns[colName].FillWeight = 1.0f;
+            }
+
             // Center Content & Header
             foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colStatus", "colActive" })
             {
