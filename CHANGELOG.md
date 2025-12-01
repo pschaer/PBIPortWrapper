@@ -2,7 +2,7 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
-## [0.3.0] - TBD (In Development)
+## [0.3.0] - 2025-12-01
 
 ### Added
 - **Structured Logging System** - Clear log levels (DEBUG, INFO, WARNING, ERROR) with named categories

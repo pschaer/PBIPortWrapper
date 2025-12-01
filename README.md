@@ -116,7 +116,7 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
   - Automatically rotates at 5MB per file, keeps 5 historical logs
 
 
-## 🐛 Known Limitations (v0.2)
+## 🐛 Known Limitations (v0.3)
 
 - ⚠️ **Database name changes** when Power BI Desktop restarts - requires reconnection
 - ⚠️ **Network access setup** - manual Windows Firewall configuration required
@@ -128,6 +128,13 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 - Multi-instance support
 - Per-instance port mapping, network access control and auto-connect
 - DataGrid-based UI
+
+### v0.3 ✅ (Released)
+- Structured logging system with rotation
+- Named logging categories (DEBUG, INFO, WARNING, ERROR)
+- Contextual connection tracking with remote IP addresses
+- Global exception handling with full stack traces
+- Thread-safe concurrent logging
 
 ### v0.x (Planned)
 - **External Tool Integration** - Register as Power BI Desktop External Tool for one-click launch
