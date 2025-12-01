@@ -4,21 +4,48 @@ All notable changes to PBI Port Wrapper will be documented in this file.
 
 ## [0.3.0] - 2025-12-01
 
-### Added
+### Added - User Interface
+- **System Tray Integration** - Minimize application to system tray for background operation
+- **Copy Connection String** - One-click button to copy connection string to clipboard
+- **Set Port Action Button** - Direct port configuration via action button (alternative to field editing)
+- **Application Logo/Icon** - Professional branding integrated throughout UI
+- **FileSystemWatcher Detection** - Instant Power BI instance detection (faster than polling)
+- **External Tool Integration** - Register as Power BI Desktop External Tool for ribbon access
+
+### Added - Logging & Diagnostics
 - **Structured Logging System** - Clear log levels (DEBUG, INFO, WARNING, ERROR) with named categories
 - **Contextual Logging Details** - Remote IP addresses, port mappings, model names tracked for every operation
 - **Automatic Log Rotation** - Logs rotate at 5MB with historical retention (keeps 5 files)
-- **LoggerService** - Centralized logging infrastructure usable by all services
 - **Connection Tracking** - Detailed connection/disconnection logs with active connection counts
 - **Exception Logging** - Full stack traces and exception details in structured format
 - **Thread-Safe Logging** - Safe for concurrent use from multiple proxy threads
+- **LoggerService** - Centralized logging infrastructure usable by all services
 
-### Improved
-- **Global Exception Handling** - Unhandled exceptions now logged with full context using LoggerService
+### Improved - Code Quality & Architecture
+- **MVP Pattern Implementation** - Clean separation of concerns with proper MVP architecture
+- **Eliminated God Object Anti-Pattern** - Better code organization with ViewEventCoordinator
+- **Grid Logic Refactoring** - GridSyncHelper extraction for cleaner presenter code
+- **Configuration Immutability** - ProxyConfiguration made read-only where appropriate
+- **Global Exception Handling** - Unhandled exceptions now logged with full context
 - **ProxyManager Logging** - Tracks proxy lifecycle with associated model names
 - **TcpProxyService Logging** - Per-proxy detailed connection information with remote IP tracking
+
+### Improved - User Experience
+- **Column Layout** - Model Name column optimized for better visibility
 - **Log File Organization** - Professional formatting: [yyyy-MM-dd HH:mm:ss] [LEVEL] [Category] Message
-- **Performance** - Minimal overhead; efficient log rotation check on every write
+- **Instance Detection Performance** - Significantly faster via FileSystemWatcher vs polling
+- **Configuration Handling** - Improved Remove action and config reload on refresh
+
+### Fixed
+- **IP Detection Logic** - Corrected identification of remote IP addresses
+- **Configuration Persistence** - Fixed in-memory config to preserve Remove deletions
+- **Auto-Reconnect Behavior** - Improved and documented auto-restart logic
+
+### Known Limitations
+- **Auto-Restart on Stop** - When "Auto" mode is enabled, manually stopping a proxy will restart it on next refresh if PBI instance still running (documented as expected behavior)
+- **Database Name Changes** - Database name changes when Power BI Desktop restarts (requires reconnection)
+- **Network Access Setup** - Manual Windows Firewall configuration required for remote connections
+
 
 ## [0.2.0] - 2025-11-28
 
