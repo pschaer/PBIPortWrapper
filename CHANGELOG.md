@@ -39,10 +39,10 @@ All notable changes to PBI Port Wrapper will be documented in this file.
 ### Fixed
 - **IP Detection Logic** - Corrected identification of remote IP addresses
 - **Configuration Persistence** - Fixed in-memory config to preserve Remove deletions
-- **Auto-Reconnect Behavior** - Improved and documented auto-restart logic
+- **Auto-Reconnect Behavior** - Improved auto-restart logic
 
 ### Known Limitations
-- **Auto-Restart on Stop** - When "Auto" mode is enabled, manually stopping a proxy will restart it on next refresh if PBI instance still running (documented as expected behavior)
+- **Auto-Restart on Stop** - When "Auto" mode is enabled, manually stopping a proxy will restart it on next poll interval if PBI instance still running; workaround: disable Auto to Stop an instance, then re-enable Auto
 - **Database Name Changes** - Database name changes when Power BI Desktop restarts (requires reconnection)
 - **Network Access Setup** - Manual Windows Firewall configuration required for remote connections
 

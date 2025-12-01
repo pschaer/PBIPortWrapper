@@ -49,20 +49,24 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 
 ## 📸 Interface
 
-![PBI Port Wrapper - Multi-Instance Management UI](docs/assets/screenshot_v0.2.png)
+![PBI Port Wrapper - Multi-Instance Management UI](docs/assets/screenshot_v0.3.png)
 
 *DataGrid interface showing multiple Power BI instances with individual port mappings, auto-connect settings, and network access controls*
 
 ### v0.3 UI Features
 - **System Tray** - Minimize to tray for background operation
 - **Copy Connection String Button** - One-click copy for easy sharing to DAX Studio, Excel, etc.
-- **Set Port Action Button** - Direct port configuration alternative to field editing
-- **App Logo** - Branding with integrated application icon
+- **Improved Action Button Functionality** - Set Port > Start > Stop > Remove
+- **Improved Detection and Consolidation** - Fast instance detection and matching on configured settings
 - **Smart Column Layout** - Model Name column sized appropriately with responsive grid
-- **Instant Detection** - FileSystemWatcher provides real-time instance detection
+- **App Icon** - It actually looks like software now 😉
 
 
 ## 🔌 Connecting from Tools
+
+### Using Copy Connection String Feature
+1. Right-click on any instance and choose **Copy Connection String**
+2. Connection string is copied to clipboard (e.g., `localhost:55555` or `[your-ip]:55555` when Network is set)
 
 ### Excel (Same Computer)
 1. Data → Get Data → From Database → From Analysis Services
@@ -82,12 +86,6 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 1. Connect → Connection String
 2. Enter: ```Data Source=localhost:55555```
 3. Click Connect
-
-### Using Copy Connection String Feature (v0.3)
-1. Click the **Copy Connection String** button for any instance
-2. Connection string is copied to clipboard (e.g., `localhost:55555`)
-3. Paste into your tool of choice
-4. Easy sharing with team members!
 
 
 ## ⚙️ Configuration

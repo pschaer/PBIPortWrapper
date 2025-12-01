@@ -66,7 +66,7 @@ namespace PBIPortWrapper
 
         private void ConfigureGridColumns()
         {
-            this.Text = "PBI Port Wrapper v0.2";
+            this.Text = "PBI Port Wrapper v0.3";
 
             // Add Active Connections Column
             if (!dataGridViewInstances.Columns.Contains("colActive"))
@@ -115,7 +115,7 @@ namespace PBIPortWrapper
             // Hide Refresh button
             buttonRefresh.Visible = false;
 
-            LogMessage("PBI Port Wrapper v0.2");
+            LogMessage("PBI Port Wrapper v0.3");
             LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
             LogMessage($"Log file: {_loggerService?.GetLogFilePath()}"); 
             LogMessage("");
