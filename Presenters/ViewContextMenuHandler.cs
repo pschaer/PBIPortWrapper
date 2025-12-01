@@ -2,6 +2,8 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Windows.Forms;
 
 namespace PBIPortWrapper.Presenters
@@ -97,15 +99,27 @@ namespace PBIPortWrapper.Presenters
                     {
                         try
                         {
-                            string hostName = System.Net.Dns.GetHostName();
-                            var ipEntry = System.Net.Dns.GetHostEntry(hostName);
-                            var ip = ipEntry.AddressList.FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                            if (ip != null)
+                            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
                             {
-                                connectionString = $"{ip}:{fixedPort}";
+                                socket.Connect("8.8.8.8", 65530);
+                                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
+                                connectionString = $"{endPoint.Address}:{fixedPort}";
                             }
                         }
-                        catch { }
+                        catch
+                        {
+                            try
+                            {
+                                string hostName = Dns.GetHostName();
+                                var ipEntry = Dns.GetHostEntry(hostName);
+                                var ip = ipEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
+                                if (ip != null)
+                                {
+                                    connectionString = $"{ip}:{fixedPort}";
+                                }
+                            }
+                            catch { }
+                        }
                     }
 
                     Clipboard.SetText(connectionString);
