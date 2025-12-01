@@ -13,7 +13,7 @@ namespace PBIPortWrapper
 {
         public partial class MainForm : Form
     {
-                // Services
+        // Services
         private PowerBIDetector _detector;
         private ProxyManager _proxyManager;
         private ConfigurationManager _configManager;
@@ -115,7 +115,7 @@ namespace PBIPortWrapper
             // Hide Refresh button
             buttonRefresh.Visible = false;
 
-                        LogMessage("PBI Port Wrapper v0.2");
+            LogMessage("PBI Port Wrapper v0.2");
             LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
             LogMessage($"Log file: {_loggerService?.GetLogFilePath()}"); 
             LogMessage("");

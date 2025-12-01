@@ -86,7 +86,7 @@
             // 
             this.checkBoxMinimizeToTray.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.checkBoxMinimizeToTray.AutoSize = true;
-            this.checkBoxMinimizeToTray.Location = new System.Drawing.Point(580, 24);
+            this.checkBoxMinimizeToTray.Location = new System.Drawing.Point(680, 24);
             this.checkBoxMinimizeToTray.Name = "checkBoxMinimizeToTray";
             this.checkBoxMinimizeToTray.Size = new System.Drawing.Size(111, 19);
             this.checkBoxMinimizeToTray.TabIndex = 2;
