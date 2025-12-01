@@ -16,6 +16,7 @@
 		<Description>TCP port forwarding proxy for Power BI Desktop, providing stable port access for external tools</Description>
 		<Authors>Pascal Schär</Authors>
 		<Copyright>Copyright © 2025 Pascal Schär. Licensed under MIT License.</Copyright>
+		<ApplicationIcon>app.ico</ApplicationIcon>
 	</PropertyGroup>
 
 	<ItemGroup>
