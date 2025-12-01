@@ -11,13 +11,14 @@ using PBIPortWrapper.Presenters;
 
 namespace PBIPortWrapper
 {
-    public partial class MainForm : Form
+        public partial class MainForm : Form
     {
                 // Services
         private PowerBIDetector _detector;
         private ProxyManager _proxyManager;
         private ConfigurationManager _configManager;
         private ValidationService _validationService;
+        private LoggerService _loggerService;
         private ProxyConfiguration _config;
         private FileSystemWatcher _portFileWatcher;
         
@@ -114,18 +115,27 @@ namespace PBIPortWrapper
             // Hide Refresh button
             buttonRefresh.Visible = false;
 
-            LogMessage("PBI Port Wrapper v0.2");
+                        LogMessage("PBI Port Wrapper v0.2");
             LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
-            LogMessage($"Log file: {new ConfigurationManager().GetLogFilePath()}"); 
+            LogMessage($"Log file: {_loggerService?.GetLogFilePath()}"); 
             LogMessage("");
         }
 
-                private void InitializeServices()
+                        private void InitializeServices()
         {
             _detector = new PowerBIDetector();
-            _proxyManager = new ProxyManager();
+            _loggerService = new LoggerService(LogLevel.Info);
+            _proxyManager = new ProxyManager(_loggerService);
             _configManager = new ConfigurationManager();
             _validationService = new ValidationService();
+            
+            _loggerService.OnLogMessage += (sender, args) => 
+            {
+                if (args.Level >= LogLevel.Warning)
+                {
+                    LogMessage(args.Message);
+                }
+            };
 
             _proxyManager.OnLog += (sender, message) => LogMessage(message);
             _proxyManager.OnError += (sender, message) => LogMessage($"ERROR: {message}");

@@ -113,6 +113,8 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 
 - **Configuration**: ```%APPDATA%\PBIPortWrapper\config.json```
 - **Logs**: ```%APPDATA%\PBIPortWrapper\log.txt```
+  - Automatically rotates at 5MB per file (keeps 5 historical logs)
+  - Full structured logging with timestamps, categories, and error stack traces
 
 
 ## 🐛 Known Limitations (v0.2)

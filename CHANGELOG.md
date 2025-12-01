@@ -2,6 +2,24 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.3.0] - TBD (In Development)
+
+### Added
+- **Structured Logging System** - Clear log levels (DEBUG, INFO, WARNING, ERROR) with named categories
+- **Contextual Logging Details** - Remote IP addresses, port mappings, model names tracked for every operation
+- **Automatic Log Rotation** - Logs rotate at 5MB with historical retention (keeps 5 files)
+- **LoggerService** - Centralized logging infrastructure usable by all services
+- **Connection Tracking** - Detailed connection/disconnection logs with active connection counts
+- **Exception Logging** - Full stack traces and exception details in structured format
+- **Thread-Safe Logging** - Safe for concurrent use from multiple proxy threads
+
+### Improved
+- **Global Exception Handling** - Unhandled exceptions now logged with full context using LoggerService
+- **ProxyManager Logging** - Tracks proxy lifecycle with associated model names
+- **TcpProxyService Logging** - Per-proxy detailed connection information with remote IP tracking
+- **Log File Organization** - Professional formatting: [yyyy-MM-dd HH:mm:ss] [LEVEL] [Category] Message
+- **Performance** - Minimal overhead; efficient log rotation check on every write
+
 ## [0.2.0] - 2025-11-28
 
 ### Added

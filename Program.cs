@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using PBIPortWrapper.Services;
 
 namespace PBIPortWrapper
 {
@@ -44,20 +45,11 @@ namespace PBIPortWrapper
                 MessageBoxIcon.Error
             );
 
-            // Optionally log to file
+                        // Log using LoggerService
             try
             {
-                string logPath = System.IO.Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "PBIPortWrapper",
-                    "crash.log"
-                );
-
-                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(logPath));
-                System.IO.File.AppendAllText(
-                    logPath,
-                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] CRASH: {ex.Message}\n{ex.StackTrace}\n\n"
-                );
+                var logger = new LoggerService();
+                logger.LogError("Global", "Unhandled exception occurred", ex);
             }
             catch
             {

@@ -66,7 +66,7 @@ namespace PBIPortWrapper.Presenters
                     return;
                 }
 
-                await _proxyManager.StartProxyAsync(fixedPort, instance.Port, allowNetwork);
+                await _proxyManager.StartProxyAsync(fixedPort, instance.Port, allowNetwork, instance.FileName);
             }
             catch (Exception ex)
             {
