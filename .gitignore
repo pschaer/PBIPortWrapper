@@ -370,7 +370,7 @@ Installer/Output/
 Installer/Publish/
 temp_publish/
 
-# Installer Artifacts
-Installer/Output/
-Installer/Publish/
-temp_publish/
+# Local build/restore transcripts (were accidentally tracked pre-v0.5)
+build_log.txt
+build_diag.txt
+restore_log.txt
