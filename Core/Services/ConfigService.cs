@@ -91,6 +91,9 @@ namespace PBIPortWrapper.Services
         {
             if (Current == null) return;
             if (string.IsNullOrEmpty(modelName)) return;
+            // #9: rules match by file name; a rule saved under "Untitled" is
+            // orphaned the moment the model is saved under its real name.
+            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
 
             var rule = FindRule(modelName);
             if (rule == null)

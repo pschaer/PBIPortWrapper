@@ -2,6 +2,22 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.5.1] - 2026-07-20
+
+### Fixed
+- **Single-instance guard** - a second wrapper launch now fronts the existing
+  window and exits instead of silently sharing config/log and competing for
+  ports; a crashed wrapper never blocks the next start (#64)
+- **Untitled instances** - configuration is blocked with a visible "Unsaved"
+  status until the .pbix is saved; previously Set Port appeared to work but the
+  rule was silently dropped (or orphaned under "Untitled") once the model got
+  its real name; the alias editor path into the same bug is closed too (#9)
+
+### Housekeeping
+- Closed stale issues already fixed by the v0.4 detection rework (#50, #51),
+  a v0.3-era tooltip crash superseded by the panel rework (#30), and the
+  v1.0-investigation salvage review - fully superseded by v0.5 serving (#44)
+
 ## [0.5.0] - 2026-07-19
 
 ### Added - Serve Sessions (stable database names)
