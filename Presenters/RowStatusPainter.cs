@@ -44,6 +44,18 @@ namespace PBIPortWrapper.Presenters
                 return;
             }
 
+            // #9: config rules match by file name, so an unsaved model would
+            // orphan its rule on the first real save - block configuration and
+            // say why instead of silently not persisting.
+            if (string.Equals(row.Cells["colModelName"].Value?.ToString(), "Untitled", StringComparison.OrdinalIgnoreCase))
+            {
+                _setRowStatus(row, "Unsaved", Color.Gray, "", true);
+                row.Cells["colStatus"].ToolTipText = "Save the .pbix in Power BI Desktop to configure this instance.";
+                row.Cells["colServe"].Value = "";
+                row.Cells["colActive"].Value = "";
+                return;
+            }
+
             var workspaceId = row.Tag as string;
             var session = workspaceId != null ? _sessionLookup(workspaceId) : null;
             if (session != null)

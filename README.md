@@ -174,7 +174,6 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 
 - ⚠️ **Desktop errors while serving** - Power BI Desktop shows "Cannot load model"
   while its database is renamed; expected, click **Stop Serving** to restore it
-- ⚠️ **No single-instance guard** - run one wrapper at a time (#64)
 - ⚠️ **Conservative unsaved-changes check** - serving may ask for confirmation even
   right after a save (the Undo history can't prove a save happened)
 - ⚠️ **Network access setup** - manual Windows Firewall configuration required
@@ -221,10 +220,13 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 - Crash recovery (resume serving or restore name), unsaved-changes preflight
 - Fixes: config lost-update race, manual Stop vs Auto
 
+### v0.5.1 ✅ (Released)
+- Single-instance guard (named mutex; second launch fronts the existing window)
+- Untitled instances blocked from configuration until the .pbix is saved
+
 ### v0.6 (Planned)
 - .odc file generation for one-click Excel connections
 - Tray-first workflow UI
-- Single-instance guard (#64)
 
 ### v1.0 (Vision)
 - Full XMLA protocol proxy with database name abstraction

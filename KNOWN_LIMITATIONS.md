@@ -41,19 +41,3 @@ specific field.
 **Status:** Accepted architectural limitation to preserve the visual "Inline
 Expansion" design. Fixing this would require a complete UI rewrite (e.g.,
 Master-Detail sibling panels).
-
-
-## 3. No Single-Instance Guard (#64)
-**Issue:** Nothing prevents launching a second wrapper process. Concurrent
-instances share config.json and log.txt without coordination and compete for
-the same fixed ports.
-
-**Impact:** Cross-process config lost-updates, interleaved log files, and
-confusing port-bind failures in the losing instance. With serve sessions, two
-wrappers could each prompt for the same crash recovery record.
-
-**Workaround:** Run only one wrapper at a time (check the tray before starting
-a second one).
-
-**Status:** Known bug, ships as a limitation in v0.5.0. Planned fix: named
-mutex at startup that fronts the existing instance's window (see issue #64).

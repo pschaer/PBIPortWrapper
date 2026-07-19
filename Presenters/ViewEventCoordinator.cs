@@ -162,6 +162,9 @@ namespace PBIPortWrapper.Presenters
             if (_dataGridView.Columns[e.ColumnIndex].Name == "colFixedPort")
             {
                 var row = _dataGridView.Rows[e.RowIndex];
+                // Read-only cell means the row is not configurable right now
+                // (running, serving, or Untitled - #9); don't auto-suggest into it.
+                if (row.Cells["colFixedPort"].ReadOnly) return;
                 if (row.Cells["colFixedPort"].Value == null || string.IsNullOrEmpty(row.Cells["colFixedPort"].Value.ToString()))
                 {
                     int suggestedPort = 55555;

@@ -232,7 +232,16 @@ namespace PBIPortWrapper.Controls
         /// </summary>
         private void UpdateServeState(DetailsDisplayData data)
         {
-            if (data.IsServing)
+            // #9: a rule saved under "Untitled" is orphaned once the model gets
+            // its real name - configuration stays locked until the file is saved.
+            bool untitled = string.Equals(data.ModelName, "Untitled", StringComparison.OrdinalIgnoreCase);
+
+            if (untitled)
+            {
+                _lblServeState.Text = "Unsaved model — save the .pbix to enable configuration.";
+                _lblServeState.ForeColor = Color.DarkOrange;
+            }
+            else if (data.IsServing)
             {
                 _lblServeState.Text = $"Serving as '{data.DatabaseAlias}' on port {data.FixedPort}";
                 _lblServeState.ForeColor = Color.MediumBlue;
@@ -254,12 +263,14 @@ namespace PBIPortWrapper.Controls
             }
 
             // The alias is the serve session's identity; lock it while in use.
-            bool locked = data.IsServing;
+            bool locked = data.IsServing || untitled;
             _txtAlias.Enabled = !locked;
             _btnSaveAlias.Enabled = !locked;
-            _lblAliasHint.Text = locked
-                ? "Stop serving to change the alias."
-                : "Used as the database name while serving.";
+            _lblAliasHint.Text = untitled
+                ? "Save the .pbix first."
+                : locked
+                    ? "Stop serving to change the alias."
+                    : "Used as the database name while serving.";
         }
 
         public void UpdateConnectionInfo(int fixedPort)

@@ -88,6 +88,17 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
+        public void SetStableAlias_RefusesUntitled()
+        {
+            // #9: rules match by file name; a rule stored under "Untitled" is
+            // orphaned as soon as the model is saved under its real name.
+            _service.SetStableAlias("Untitled", "Sales");
+            _service.SetStableAlias("untitled", "Sales");
+
+            Assert.Empty(ReloadFromDisk().Current.PortMappings);
+        }
+
+        [Fact]
         public void SetStableAlias_DoesNotDuplicateRules()
         {
             _service.SetStableAlias("Sample01", "Sales");
