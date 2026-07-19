@@ -3,16 +3,19 @@
 
 # PBI Port Wrapper
 
-A TCP port forwarding proxy for Power BI Desktop that provides stable port access for external tools like Excel, DAX Studio, and Tabular Editor.
+A TCP port forwarding proxy for Power BI Desktop that provides stable port access — and, since v0.5, stable database names — for external tools like Excel, DAX Studio, and Tabular Editor.
 
 ## 🎯 Problem Solved
 
-Power BI Desktop uses dynamic ports that change with each session, making it difficult to:
-- Connect from Excel or external tools consistently
-- Automate workflows that depend on local Power BI models
-- Share connection to other hosts on the network
+Power BI Desktop randomizes both connection coordinates every session:
+- the **port** its local Analysis Services instance listens on, and
+- the **database name** (a GUID) external tools connect to.
 
-**PBI Port Wrapper** solves this by providing a stable, fixed port that forwards connections to the configured Power BI Desktop instance.
+That breaks saved Excel workbook connections, hardcoded scripts, and any workflow that depends on a local model. **PBI Port Wrapper** fixes the port with a forwarding proxy and, while *serving*, fixes the database name with a stable alias:
+
+```
+Provider=MSOLAP;Data Source=localhost:55555;Initial Catalog=YourAlias
+```
 
 ## ✨ Features
 
@@ -25,6 +28,22 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 - ✅ **Local Connections** - Full Windows Authentication support
 - ✅ **Remote Connections** - Network access with explicit credentials
 - ✅ **Connection Tracking** - Number of connected clients
+
+### Serve Sessions (v0.5)
+- ✅ **Stable Database Name** - assign a *Serve Alias* per model; while serving, the
+  workspace database carries that name, so saved workbook connections survive
+  Desktop restarts
+- ✅ **Serve / Stop Serving** - one click starts a serve session (rename + forward),
+  one click restores Desktop exactly as it was
+- ✅ **Crash Recovery** - if the wrapper dies mid-serve, the next start offers to
+  resume serving or restore the original database name
+- ✅ **Unsaved-Changes Guard** - serving warns before touching a model that may have
+  unsaved changes
+
+> ⚠️ While a model is being served, Power BI Desktop shows "Cannot load model"
+> errors — this is expected. Don't troubleshoot in Desktop; click **Stop Serving**
+> to restore it. Serving is meant as a deliberate, serve-only session
+> (see [docs/serving-workflow.md](docs/serving-workflow.md)).
 
 
 ## 📋 Requirements
@@ -46,20 +65,28 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 7. **Click "Start"** to begin forwarding for each instance
 8. **Connect** from your tools using the configured ports
 
+**To also get a stable database name** (survives Desktop restarts):
+
+9. Expand the row and set a **Serve Alias** in the details panel
+10. Click **Serve** and confirm - the row shows *Serving*
+11. Connect via `Data Source=localhost:<port>;Initial Catalog=<alias>`
+12. When done, click **Stop Serving** - Desktop is restored and usable again
+
 
 ## 📸 Interface
 
 ![PBI Port Wrapper - Multi-Instance Management UI](docs/assets/screenshot_v0.3.png)
 
-*DataGrid interface showing multiple Power BI instances with individual port mappings, auto-connect settings, and network access controls*
+*DataGrid interface showing multiple Power BI instances with individual port mappings, auto-connect settings, and network access controls (v0.3 screenshot - v0.5 adds the Serve column and status)*
 
-### v0.3 UI Features
+### UI Features
+- **Serve Column (v0.5)** - Serve / Stop Serving per row, with a distinct *Serving* status
+- **Serve Alias Editor (v0.5)** - validated alias editing in the row details panel,
+  with an explicit serve-state line and one-click MSOLAP connection string copy
 - **System Tray** - Minimize to tray for background operation
 - **Copy Connection String Button** - One-click copy for easy sharing to DAX Studio, Excel, etc.
-- **Improved Action Button Functionality** - Set Port > Start > Stop > Remove
-- **Improved Detection and Consolidation** - Fast instance detection and matching on configured settings
-- **Smart Column Layout** - Model Name column sized appropriately with responsive grid
-- **App Icon** - It actually looks like software now 😉
+- **Action Buttons** - Set Port > Start > Stop > Remove
+- **Fast Detection and Consolidation** - Instant instance detection and matching on configured settings
 
 
 ## 🔌 Connecting from Tools
@@ -73,6 +100,10 @@ Power BI Desktop uses dynamic ports that change with each session, making it dif
 2. Server name: ```localhost:55555```
 3. Authentication: Use Windows Authentication
 4. Select your database
+
+> 💡 **Tip:** connect while the model is being *served* and the workbook stores the
+> stable alias instead of the session GUID — saved workbooks keep refreshing across
+> Power BI Desktop restarts (serve the model again first).
 
 ### Excel (Remote Computer)
 1. Data → Get Data → From Database → From Analysis Services
@@ -139,11 +170,16 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
   - Automatically rotates at 5MB per file, keeps 5 historical log files
 
 
-## 🐛 Known Limitations (v0.3)
+## 🐛 Known Limitations (v0.5)
 
-- ⚠️ **Database name changes** when Power BI Desktop restarts - requires reconnection
+- ⚠️ **Desktop errors while serving** - Power BI Desktop shows "Cannot load model"
+  while its database is renamed; expected, click **Stop Serving** to restore it
+- ⚠️ **No single-instance guard** - run one wrapper at a time (#64)
+- ⚠️ **Conservative unsaved-changes check** - serving may ask for confirmation even
+  right after a save (the Undo history can't prove a save happened)
 - ⚠️ **Network access setup** - manual Windows Firewall configuration required
-- ⚠️ **Auto prevents Stopping** - workaround: disable Auto to Stop an instance, then re-enable Auto
+
+See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 
 
 ## 🗺️ Roadmap
@@ -174,10 +210,21 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 - Global exception handling with stack traces
 - Thread-safe concurrent logging
 
-### v0.x (Future)
-- Better handling of Auto mode vs manual Stop
-- Additional configuration profiles
-- Performance optimizations
+### v0.4 ✅ (Released)
+- Headless `PBIPortWrapper.Core` library - all non-UI logic extracted and unit-tested
+- Config-driven auto-connect; rows identified by workspace instead of grid position
+- DPI-aware layout fixes
+
+### v0.5 ✅ (Released)
+- Serve sessions: stable database names via per-model alias
+- Serve/Stop UI with distinct Serving status and validated alias editor
+- Crash recovery (resume serving or restore name), unsaved-changes preflight
+- Fixes: config lost-update race, manual Stop vs Auto
+
+### v0.6 (Planned)
+- .odc file generation for one-click Excel connections
+- Tray-first workflow UI
+- Single-instance guard (#64)
 
 ### v1.0 (Vision)
 - Full XMLA protocol proxy with database name abstraction
