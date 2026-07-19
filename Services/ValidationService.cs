@@ -1,15 +1,34 @@
+using System.Collections.Generic;
 using System.Windows.Forms;
 
 namespace PBIPortWrapper.Services
 {
+    /// <summary>
+    /// DataGridView adapter over the Core PortValidator: extracts assigned ports
+    /// from grid rows and delegates the actual validation.
+    /// </summary>
     public class ValidationService
     {
         public bool IsPortValid(string portString, out int port)
         {
-            return int.TryParse(portString, out port) && port > 0 && port <= 65535;
+            return PortValidator.TryParsePort(portString, out port);
         }
 
         public bool IsPortDuplicate(int port, DataGridView grid, int excludeRowIndex)
+        {
+            foreach (int otherPort in AssignedPorts(grid, excludeRowIndex))
+            {
+                if (otherPort == port) return true;
+            }
+            return false;
+        }
+
+        public (bool IsValid, string ErrorMessage) ValidatePortAssignment(string portString, DataGridView grid, int rowIndex)
+        {
+            return PortValidator.ValidatePortAssignment(portString, AssignedPorts(grid, rowIndex));
+        }
+
+        private static IEnumerable<int> AssignedPorts(DataGridView grid, int excludeRowIndex)
         {
             foreach (DataGridViewRow row in grid.Rows)
             {
@@ -18,32 +37,9 @@ namespace PBIPortWrapper.Services
                 if (row.Cells["colFixedPort"].Value != null &&
                     int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int otherPort))
                 {
-                    if (otherPort == port) return true;
+                    yield return otherPort;
                 }
             }
-            return false;
-        }
-
-        public (bool IsValid, string ErrorMessage) ValidatePortAssignment(string portString, DataGridView grid, int rowIndex)
-        {
-            if (string.IsNullOrEmpty(portString)) return (true, string.Empty); // Allow empty
-
-            if (!int.TryParse(portString, out int newPort))
-            {
-                return (false, "Port must be a number");
-            }
-
-            if (newPort < 1 || newPort > 65535)
-            {
-                return (false, "Port must be between 1 and 65535");
-            }
-
-            if (IsPortDuplicate(newPort, grid, rowIndex))
-            {
-                return (false, $"Port {newPort} is already assigned to another instance.");
-            }
-
-            return (true, string.Empty);
         }
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using PBIPortWrapper.Models;
@@ -12,148 +11,86 @@ namespace PBIPortWrapper.Presenters
     public class ViewEventCoordinator
     {
         private readonly DataGridView _dataGridView;
-        private readonly ContextMenuStrip _contextMenu;
-        private readonly ProxyManager _proxyManager;
         private readonly ValidationService _validationService;
         private readonly GridPresenter _gridPresenter;
-        private readonly ProxyPresenter _proxyPresenter;
-        private readonly ConfigPresenter _configPresenter;
-        private readonly Func<ProxyConfiguration> _configProvider;
+        private readonly Action<int> _onToggleExpand;
+        private readonly RowActionHandler _actionHandler;
+        private readonly ServeActionHandler _serveHandler;
+        private readonly Func<int, bool> _isRunningProvider;
         private readonly Func<List<PowerBIInstance>> _instancesProvider;
-        private readonly Action _refreshCallback;
 
-        public ViewContextMenuHandler ContextMenuHandler { get; }
+        public event EventHandler<RowActionEventArgs> ActionRequested;
+        public event EventHandler<ConfigChangeEventArgs> ConfigRequested;
+
+        public ViewContextMenuHandler ContextMenuHandler { get; private set; }
 
         public ViewEventCoordinator(
             DataGridView dataGridView,
             ContextMenuStrip contextMenu,
-            ProxyManager proxyManager,
             ValidationService validationService,
             GridPresenter gridPresenter,
-            ProxyPresenter proxyPresenter,
-            ConfigPresenter configPresenter,
-            Func<ProxyConfiguration> configProvider,
             Func<List<PowerBIInstance>> instancesProvider,
-            Action refreshCallback)
+            Func<int, bool> isRunningProvider,
+            Action refreshCallback,
+            Action<int> onToggleExpand,
+            ServeActionHandler serveHandler)
         {
             _dataGridView = dataGridView;
-            _contextMenu = contextMenu;
-            _proxyManager = proxyManager;
             _validationService = validationService;
             _gridPresenter = gridPresenter;
-            _proxyPresenter = proxyPresenter;
-            _configPresenter = configPresenter;
-            _configProvider = configProvider;
+            _isRunningProvider = isRunningProvider;
+            _onToggleExpand = onToggleExpand;
             _instancesProvider = instancesProvider;
-            _refreshCallback = refreshCallback;
+            _serveHandler = serveHandler;
             
             ContextMenuHandler = new ViewContextMenuHandler(dataGridView);
+            _actionHandler = new RowActionHandler(
+                dataGridView, validationService, gridPresenter, instancesProvider);
+            
+            _actionHandler.ActionRequested += (s, e) => ActionRequested?.Invoke(s, e);
+            _actionHandler.ConfigRequested += (s, e) => ConfigRequested?.Invoke(s, e);
         }
 
-        public async void OnCellContentClick(object sender, DataGridViewCellEventArgs e)
+        public void OnCellContentClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
+
+            if (_dataGridView.Columns[e.ColumnIndex].Name == "colExpand")
+            {
+                // Row identity is WorkspaceId; detail panels remain keyed by ProcessId.
+                if (_dataGridView.Rows[e.RowIndex].Tag is string workspaceId)
+                {
+                    var instance = _instancesProvider().FirstOrDefault(i => i.WorkspaceId == workspaceId);
+                    if (instance != null)
+                        _onToggleExpand?.Invoke(instance.ProcessId);
+                }
+                return;
+            }
+
+            if (_dataGridView.Columns[e.ColumnIndex].Name == "colServe")
+            {
+                var row = _dataGridView.Rows[e.RowIndex];
+                switch (row.Cells["colServe"].Value?.ToString())
+                {
+                    case "Serve": _ = _serveHandler.HandleServeAsync(row); break;
+                    case "Stop Serving": _ = _serveHandler.HandleStopServingAsync(row); break;
+                }
+                return;
+            }
 
             if (_dataGridView.Columns[e.ColumnIndex].Name == "colAction")
             {
                 var row = _dataGridView.Rows[e.RowIndex];
                 string action = row.Cells["colAction"].Value?.ToString();
-                
-                if (string.IsNullOrEmpty(action)) return; 
 
-                int fixedPort = 0;
-                if (row.Cells["colFixedPort"].Value != null)
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+                if (string.IsNullOrEmpty(action)) return;
 
-                if (action == "Set Port")
+                switch (action)
                 {
-                    // Auto-populate Fixed Port with next available port if empty
-                    if (fixedPort == 0)
-                    {
-                        // Use same logic as OnCellEnter - suggest next available port starting from 55555
-                        int suggestedPort = 55555;
-                        while (_validationService.IsPortDuplicate(suggestedPort, _dataGridView, e.RowIndex))
-                        {
-                            suggestedPort++;
-                        }
-                        fixedPort = suggestedPort;
-                        row.Cells["colFixedPort"].Value = fixedPort;
-                    }
-                    
-                    // Validate and save the port configuration
-                    if (fixedPort > 0)
-                    {
-                        if (_validationService.IsPortDuplicate(fixedPort, _dataGridView, e.RowIndex))
-                        {
-                            MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-                        _configPresenter.UpdateAndSaveRule(row, _configProvider());
-                        _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
-                    }
-                    return;
-                }
-
-                if (action == "Start")
-                {
-                    int? pid = row.Tag as int?;
-                    var instance = _instancesProvider().FirstOrDefault(i => i.ProcessId == pid);
-
-                    if (instance != null)
-                    {
-                        if (_validationService.IsPortDuplicate(fixedPort, _dataGridView, e.RowIndex))
-                        {
-                            MessageBox.Show($"Port {fixedPort} is already assigned to another instance.", "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-
-                        bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
-                        if (allowNetwork)
-                        {
-                            var result = MessageBox.Show(
-                                "Network Access is enabled for this instance.\nEnsure Windows Firewall allows inbound connections on port " + fixedPort + ".\n\nContinue?", 
-                                "Network Access", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                            if (result != DialogResult.Yes) return;
-                        }
-
-                        await _proxyPresenter.StartProxyAsync(instance, fixedPort, allowNetwork);
-                        _configPresenter.UpdateAndSaveRule(row, _configProvider());
-                    }
-                    else
-                    {
-                        MessageBox.Show("Power BI instance not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
-                }
-                else if (action == "Stop")
-                {
-                    int activeCount = _proxyManager.GetActiveConnections(fixedPort);
-                    if (activeCount > 0)
-                    {
-                        var result = MessageBox.Show(
-                            $"There are {activeCount} active connection(s) to this proxy.\nStopping it will disconnect them.\n\nAre you sure you want to stop?", 
-                            "Active Connections Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                        
-                        if (result != DialogResult.Yes) return;
-                    }
-
-                    _proxyPresenter.StopProxy(fixedPort);
-                }
-                                                                else if (action == "Remove")
-                {
-                    string status = row.Cells["colStatus"].Value?.ToString();
-                    if (status == "Running")
-                    {
-                        MessageBox.Show("Cannot remove configuration while proxy is running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-
-                    string modelName = row.Cells["colModelName"].Value?.ToString();
-                    var result = MessageBox.Show($"Remove configuration for '{modelName}'?", "Confirm Remove", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                    if (result == DialogResult.Yes)
-                    {
-                        _configPresenter.DeleteConfiguration(modelName, _configProvider());
-                        _dataGridView.Rows.Remove(row);
-                    }
+                    case "Set Port": _actionHandler.HandleSetPort(row, e.RowIndex); break;
+                    case "Start": _actionHandler.HandleStart(row, e.RowIndex); break;
+                    case "Stop": _actionHandler.HandleStop(row); break;
+                    case "Remove": _actionHandler.HandleRemove(row); break;
                 }
             }
         }
@@ -162,15 +99,13 @@ namespace PBIPortWrapper.Presenters
         {
             if (_dataGridView.Columns[e.ColumnIndex].Name == "colFixedPort")
             {
-                var validation = _validationService.ValidatePortAssignment(e.FormattedValue.ToString(), _dataGridView, e.RowIndex);
-                if (!validation.IsValid)
+                var val = _validationService.ValidatePortAssignment(e.FormattedValue.ToString(), _dataGridView, e.RowIndex);
+                if (!val.IsValid)
                 {
                     e.Cancel = true;
-                    _dataGridView.Rows[e.RowIndex].ErrorText = validation.ErrorMessage;
-                    if (validation.ErrorMessage.Contains("already assigned"))
-                    {
-                        MessageBox.Show(validation.ErrorMessage, "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    }
+                    _dataGridView.Rows[e.RowIndex].ErrorText = val.ErrorMessage;
+                    if (val.ErrorMessage.Contains("already assigned"))
+                        MessageBox.Show(val.ErrorMessage, "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 else
                 {
@@ -182,28 +117,42 @@ namespace PBIPortWrapper.Presenters
         public void OnCellEndEdit(object sender, DataGridViewCellEventArgs e)
         {
              var row = _dataGridView.Rows[e.RowIndex];
-             _configPresenter.UpdateAndSaveRule(row, _configProvider());
+             UpdateConfigFromRow(row);
              
              if (row.Cells["colFixedPort"].Value != null && 
                  int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int port) && port > 0)
              {
-                 if (!_proxyManager.IsRunning(port))
-                 {
+                 if (!_isRunningProvider(port))
                      _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
-                 }
              }
         }
         
         public void OnCellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex >= 0)
+            if (e.RowIndex < 0) return;
+            string colName = _dataGridView.Columns[e.ColumnIndex].Name;
+            if (colName == "colAuto" || colName == "colNetwork")
+                UpdateConfigFromRow(_dataGridView.Rows[e.RowIndex]);
+        }
+        
+        private void UpdateConfigFromRow(DataGridViewRow row)
+        {
+            string modelName = row.Cells["colModelName"].Value?.ToString();
+            int fixedPort = 0;
+            if (row.Cells["colFixedPort"].Value != null)
+                 int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+            
+            bool auto = Convert.ToBoolean(row.Cells["colAuto"].Value);
+            bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
+            
+            ConfigRequested?.Invoke(this, new ConfigChangeEventArgs 
             {
-                string colName = _dataGridView.Columns[e.ColumnIndex].Name;
-                if (colName == "colAuto" || colName == "colNetwork")
-                {
-                    _configPresenter.UpdateAndSaveRule(_dataGridView.Rows[e.RowIndex], _configProvider());
-                }
-            }
+                ModelName = modelName,
+                FixedPort = fixedPort,
+                Auto = auto,
+                AllowNetwork = network,
+                Row = row
+            });
         }
 
         public void OnCellEnter(object sender, DataGridViewCellEventArgs e)
@@ -215,14 +164,11 @@ namespace PBIPortWrapper.Presenters
                 var row = _dataGridView.Rows[e.RowIndex];
                 if (row.Cells["colFixedPort"].Value == null || string.IsNullOrEmpty(row.Cells["colFixedPort"].Value.ToString()))
                 {
-                    // Suggest next available port
                     int suggestedPort = 55555;
                     while (_validationService.IsPortDuplicate(suggestedPort, _dataGridView, e.RowIndex))
-                    {
                         suggestedPort++;
-                    }
-                    row.Cells["colFixedPort"].Value = suggestedPort;
                     
+                    row.Cells["colFixedPort"].Value = suggestedPort;
                     _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
                 }
             }
@@ -237,7 +183,6 @@ namespace PBIPortWrapper.Presenters
                 {
                     _dataGridView.ClearSelection();
                     _dataGridView.Rows[hit.RowIndex].Selected = true;
-                    _contextMenu.Show(_dataGridView, e.Location);
                 }
             }
         }

@@ -1,0 +1,14 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  PBIPortWrapper -> C:\Users\pasca\Projects\PBIPortWrapper\bin\Debug\net8.0-windows\PBIPortWrapper.dll
+EXEC : warning : MainForm.cs is getting large ( 394  lines). Consider refactoring (Limit 300). [C:\Users\pasca\Projects\PBIPortWrapper\PBIPortWrapper.csproj]
+C:\Users\pasca\.nuget\packages\wixtoolset.sdk\5.0.0\tools\wix.targets(909,5): error MSB3030: Could not copy the file "obj\Debug\PBIPortWrapper.msi" because it was not found. [C:\Users\pasca\Projects\PBIPortWrapper\Installer\PBIPortWrapper.Installer.wixproj]
+
+Build FAILED.
+
+EXEC : warning : MainForm.cs is getting large ( 394  lines). Consider refactoring (Limit 300). [C:\Users\pasca\Projects\PBIPortWrapper\PBIPortWrapper.csproj]
+C:\Users\pasca\.nuget\packages\wixtoolset.sdk\5.0.0\tools\wix.targets(909,5): error MSB3030: Could not copy the file "obj\Debug\PBIPortWrapper.msi" because it was not found. [C:\Users\pasca\Projects\PBIPortWrapper\Installer\PBIPortWrapper.Installer.wixproj]
+    1 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:01.95

@@ -365,3 +365,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# Installer Artifacts
+Installer/Output/
+Installer/Publish/
+temp_publish/
+
+# Installer Artifacts
+Installer/Output/
+Installer/Publish/
+temp_publish/

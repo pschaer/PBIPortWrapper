@@ -24,10 +24,11 @@ namespace PBIPortWrapper.Presenters
                 var row = _dataGridView.SelectedRows[0];
                 string toolTip = row.Cells["colModelName"].ToolTipText;
                 string filePath = null;
-                
-                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+
+                // The tooltip carries the AS workspace dir, labeled honestly (#59).
+                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Workspace: "))
                 {
-                    filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+                    filePath = toolTip.Substring(toolTip.IndexOf("Workspace: ") + 11).Trim();
                 }
 
                 if (!string.IsNullOrEmpty(filePath))
@@ -73,9 +74,9 @@ namespace PBIPortWrapper.Presenters
             {
                 var row = _dataGridView.SelectedRows[0];
                 string toolTip = row.Cells["colModelName"].ToolTipText;
-                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Path: "))
+                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Workspace: "))
                 {
-                    string filePath = toolTip.Substring(toolTip.IndexOf("Path: ") + 6).Trim();
+                    string filePath = toolTip.Substring(toolTip.IndexOf("Workspace: ") + 11).Trim();
                     Clipboard.SetText(filePath);
                 }
             }

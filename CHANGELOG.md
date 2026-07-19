@@ -2,6 +2,66 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.5.0] - 2026-07-19
+
+### Added - Serve Sessions (stable database names)
+- **Serve profiles** - per-model stable alias persisted in configuration; the alias
+  becomes the database name (Initial Catalog) while the model is being served (#56)
+- **ServeSessionService** - serve-only session lifecycle: preflight, crash-anchor
+  recovery record, rename to alias, proxy start; *Stop Serving* restores the
+  original database name; closing Desktop cleans the session up automatically (#57)
+- **Crash recovery on startup** - recovery records are matched against live
+  instances by the immutable database ID; the wrapper offers *resume serving* or
+  *restore original name*; stale records are cleared silently (#58)
+- **Serve/Stop grid actions** - per-row Serve button with the validated warning
+  flow ("Cannot load model" errors in Desktop are expected while serving);
+  distinct "Serving" status separate from plain port forwarding (#59)
+- **Unsaved-changes preflight** - UIA undo-heuristic probe; serving asks for
+  explicit confirmation when the model may have unsaved changes (#59)
+- **Serve Alias editor** - the details panel's raw "Rename DB" danger flow is
+  retired; aliases are edited with validation and applied only by serving (#59)
+- **MSOLAP connection string with alias** - one-click copy
+  (`Provider=MSOLAP;Data Source=localhost:port;Initial Catalog=alias`) while serving (#59)
+
+### Fixed
+- **Config lost-update race** - single-writer rule: every config mutation goes
+  through ConfigService, so panel and grid can no longer clobber each other (#62)
+- **Manual Stop sticking while Auto is enabled** - stopping a proxy now records
+  the intent and Auto no longer restarts it on the next poll (#63)
+
+### Changed
+- Details panel, grid tooltip and context menu now label the Analysis Services
+  workspace directory honestly ("Workspace") instead of implying a .pbix path (#59)
+- Dead top-level `FixedPort`/`AllowNetworkAccess` removed from the configuration
+  model; pre-v0.5 config files still load unchanged (#59)
+
+### Known Limitations
+- **No single-instance guard** - launching a second wrapper process causes shared
+  config/log access and port competition; planned fix is a named mutex (#64)
+- **Desktop errors while serving** - Power BI Desktop repeatedly shows
+  "Cannot load model" while its database is renamed; this is expected, do not
+  troubleshoot in Desktop - click *Stop Serving* to restore it
+- **Undo-heuristic is conservative** - the unsaved-changes probe cannot prove a
+  model was saved after editing (the undo stack survives saving), so serving may
+  ask for confirmation even right after a save
+
+## [0.4.0] - 2026-07-18
+
+### Added - Architecture
+- **PBIPortWrapper.Core** - Headless core library (instance detection, port forwarding,
+  configuration, database rename engine) with no UI dependencies; the WinForms app is
+  now a thin projection over Core
+- **InstanceMonitor** - Observable instance state moved out of the DataGridView;
+  rows are identified by WorkspaceId instead of grid position
+- **Config-driven auto-connect** - AutoConnectService decides forwarding from
+  configuration rules instead of scraping grid cells
+- **Unit test suite** - 50 tests covering Core services (detection, monitoring,
+  validation, configuration, proxy management, rename validation)
+
+### Fixed
+- **DPI-aware layout** - Grid row heights, expand/active column widths, and
+  RowDetailsPanel now scale correctly on high-DPI displays
+
 ## [0.3.0] - 2025-12-01
 
 ### Added - User Interface

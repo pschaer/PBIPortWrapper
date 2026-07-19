@@ -3,38 +3,35 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using PBIPortWrapper.Models;
 using PBIPortWrapper.Services;
 using PBIPortWrapper.Presenters;
+using PBIPortWrapper.Controls;
 
 namespace PBIPortWrapper
 {
-        public partial class MainForm : Form
+    public partial class MainForm : Form
     {
-        // Services
-        private PowerBIDetector _detector;
-        private ProxyManager _proxyManager;
-        private ConfigurationManager _configManager;
-        private ValidationService _validationService;
-        private LoggerService _loggerService;
-        private ProxyConfiguration _config;
-        private FileSystemWatcher _portFileWatcher;
+        // Application Orchestration
+        private ApplicationPresenter _appPresenter;
         
-        // Presenters
+        // Presenters (Convenience accessors, or use _appPresenter.X)
         private GridPresenter _gridPresenter;
         private ProxyPresenter _proxyPresenter;
-        private ConfigPresenter _configPresenter;
-        private ViewEventCoordinator _eventCoordinator;
+        private RowDetailsViewManager _rowDetailsManager;
         
         // State
         private List<PowerBIInstance> _currentInstances = new List<PowerBIInstance>();
+        private HashSet<int> _expandedPids = new HashSet<int>();
+        private ViewEventCoordinator _eventCoordinator;
 
         public MainForm()
         {
             InitializeComponent();
-            ConfigureGridColumns(); 
+            ConfigureGridColumns();
             
             // Set Icon
             try 
@@ -52,21 +49,75 @@ namespace PBIPortWrapper
             } 
             catch { }
 
-            InitializeServices();
-            InitializePresenters();
+            InitializeApplication();
             InitializeEventHandlers();
             InitializeContextMenu();
-            
-            // Load config
-            _config = _configPresenter.LoadConfiguration();
             
             // Initial refresh
             RefreshInstances();
         }
 
+        private void InitializeApplication()
+        {
+            _appPresenter = new ApplicationPresenter(dataGridViewInstances);
+            
+            // Bind Presenters for local usage
+            _gridPresenter = _appPresenter.GridPresenter;
+            _proxyPresenter = _appPresenter.ProxyPresenter;
+
+            // Bind UI Logging
+            _appPresenter.LoggerService.OnLogMessage += (sender, args) => 
+            {
+                 UpdateLogDisplay(args.FormattedMessage);
+            };
+
+            // Detection state lives in the InstanceMonitor; the form only renders
+            // snapshots, marshaled onto the UI thread.
+            _appPresenter.Monitor.InstancesChanged += (s, args) =>
+            {
+                if (IsDisposed || Disposing) return;
+                try
+                {
+                    BeginInvoke(new Action(() => ApplyInstances(args.Instances)));
+                }
+                catch (ObjectDisposedException) { /* form closed mid-scan */ }
+                catch (InvalidOperationException) { /* handle not created yet or gone */ }
+            };
+
+            // Initial Log
+            _appPresenter.LogAppInfo();
+            
+            // Initialize RowDetailsManager (Requires services)
+            _rowDetailsManager = new RowDetailsViewManager(
+                dataGridViewInstances,
+                _appPresenter.ProxyManager,
+                _appPresenter.ConfigService,
+                _appPresenter.ServeSessionService,
+                LogToService);
+        }
+
         private void ConfigureGridColumns()
         {
-            this.Text = "PBI Port Wrapper v0.3";
+            this.Text = "PBI Port Wrapper v0.5";
+
+            // The designer's RowTemplate.Height is 96-DPI pixels, but fonts scale
+            // with monitor DPI (PerMonitorV2) - rows must follow the font or the
+            // text gets clipped on scaled displays.
+            int rowHeight = dataGridViewInstances.Font.Height + 10;
+            dataGridViewInstances.RowTemplate.Height = rowHeight;
+            dataGridViewInstances.RowTemplate.MinimumHeight = rowHeight;
+
+            // Add Expand Column
+            if (!dataGridViewInstances.Columns.Contains("colExpand"))
+            {
+                var colExpand = new DataGridViewTextBoxColumn();
+                colExpand.Name = "colExpand";
+                colExpand.HeaderText = "";
+                colExpand.ReadOnly = true;
+                colExpand.Width = LogicalToDeviceUnits(30);
+                colExpand.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+                dataGridViewInstances.Columns.Insert(0, colExpand);
+            }
 
             // Add Active Connections Column
             if (!dataGridViewInstances.Columns.Contains("colActive"))
@@ -75,160 +126,115 @@ namespace PBIPortWrapper
                 colActive.Name = "colActive";
                 colActive.HeaderText = "Active";
                 colActive.ReadOnly = true;
-                colActive.Width = 60;
+                colActive.Width = LogicalToDeviceUnits(60);
                 dataGridViewInstances.Columns.Add(colActive);
             }
 
-            // Configure Column Ordering and Alignment
-            dataGridViewInstances.Columns["colModelName"].DisplayIndex = 0;
-            dataGridViewInstances.Columns["colPbiPort"].DisplayIndex = 1;
-            dataGridViewInstances.Columns["colFixedPort"].DisplayIndex = 2;
-            dataGridViewInstances.Columns["colAuto"].DisplayIndex = 3;
-            dataGridViewInstances.Columns["colNetwork"].DisplayIndex = 4;
-            dataGridViewInstances.Columns["colAction"].DisplayIndex = 5;
-            dataGridViewInstances.Columns["colStatus"].DisplayIndex = 6;            
-            dataGridViewInstances.Columns["colActive"].DisplayIndex = 7;
+            // Serve / Stop Serving action (#59)
+            if (!dataGridViewInstances.Columns.Contains("colServe"))
+            {
+                var colServe = new DataGridViewButtonColumn();
+                colServe.Name = "colServe";
+                colServe.HeaderText = "Serve";
+                colServe.UseColumnTextForButtonValue = false;
+                dataGridViewInstances.Columns.Add(colServe);
+            }
 
-            // Issue #8: Make Model Name column roughly twice as large as other columns
+            dataGridViewInstances.Columns["colExpand"].DisplayIndex = 0;
+            dataGridViewInstances.Columns["colModelName"].DisplayIndex = 1;
+            dataGridViewInstances.Columns["colPbiPort"].DisplayIndex = 2;
+            dataGridViewInstances.Columns["colFixedPort"].DisplayIndex = 3;
+            dataGridViewInstances.Columns["colAuto"].DisplayIndex = 4;
+            dataGridViewInstances.Columns["colNetwork"].DisplayIndex = 5;
+            dataGridViewInstances.Columns["colAction"].DisplayIndex = 6;
+            dataGridViewInstances.Columns["colServe"].DisplayIndex = 7;
+            dataGridViewInstances.Columns["colStatus"].DisplayIndex = 8;
+            dataGridViewInstances.Columns["colActive"].DisplayIndex = 9;
+
             dataGridViewInstances.Columns["colModelName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             dataGridViewInstances.Columns["colModelName"].FillWeight = 2.4f;
-            
+
+            dataGridViewInstances.Columns["colExpand"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            dataGridViewInstances.Columns["colExpand"].Width = LogicalToDeviceUnits(30);
+
             foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colAuto", "colNetwork", "colStatus", "colAction", "colActive" })
             {
                 dataGridViewInstances.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
                 dataGridViewInstances.Columns[colName].FillWeight = 1.0f;
             }
 
-            // Center Content & Header
+            // "Stop Serving" needs a wider button than the 1.0f columns
+            dataGridViewInstances.Columns["colServe"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewInstances.Columns["colServe"].FillWeight = 1.3f;
+
             foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colStatus", "colActive" })
             {
                 dataGridViewInstances.Columns[colName].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
                 dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
             }
 
-            // Center Header Only
-            foreach (var colName in new[] { "colAuto", "colNetwork", "colAction" })
+            foreach (var colName in new[] { "colAuto", "colNetwork", "colAction", "colServe" })
             {
                 dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
             }
             
-            // Hide Refresh button
             buttonRefresh.Visible = false;
-
-            LogMessage("PBI Port Wrapper v0.3");
-            LogMessage("Features: Multi-instance support, Auto-reconnect, Offline config management");
-            LogMessage($"Log file: {_loggerService?.GetLogFilePath()}"); 
-            LogMessage("");
-        }
-
-                        private void InitializeServices()
-        {
-            _detector = new PowerBIDetector();
-            _loggerService = new LoggerService(LogLevel.Info);
-            _proxyManager = new ProxyManager(_loggerService);
-            _configManager = new ConfigurationManager();
-            _validationService = new ValidationService();
-            
-            _loggerService.OnLogMessage += (sender, args) => 
-            {
-                if (args.Level >= LogLevel.Warning)
-                {
-                    LogMessage(args.Message);
-                }
-            };
-
-            _proxyManager.OnLog += (sender, message) => LogMessage(message);
-            _proxyManager.OnError += (sender, message) => LogMessage($"ERROR: {message}");
-            
-            _proxyManager.OnProxyStarted += (sender, args) => 
-            {
-                _gridPresenter?.UpdateGridStatus(args.FixedPort, true);
-                LogMessage($"Started proxy on port {args.FixedPort} -> {args.TargetPort}");
-            };
-
-            _proxyManager.OnProxyStopped += (sender, args) => 
-            {
-                _gridPresenter?.UpdateGridStatus(args.FixedPort, false);
-                LogMessage($"Stopped proxy on port {args.FixedPort}");
-            };
-
-            _proxyManager.OnProxyConnectionCountChanged += (sender, args) =>
-            {
-                _gridPresenter?.UpdateActiveConnections(args.FixedPort, args.Count);
-            };
-
-            InitializePortFileWatcher();
-        }
-
-        private void InitializePortFileWatcher()
-        {
-            try
-            {
-                string workspacesPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    @"Microsoft\Power BI Desktop\AnalysisServicesWorkspaces"
-                );
-
-                if (!Directory.Exists(workspacesPath))
-                    return;
-
-                _portFileWatcher = new FileSystemWatcher(workspacesPath);
-                _portFileWatcher.Filter = "*.port.txt";
-                _portFileWatcher.IncludeSubdirectories = true;
-                _portFileWatcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite;
-
-                _portFileWatcher.Created += (s, e) =>
-                {
-                    System.Diagnostics.Debug.WriteLine($"[PortFileWatcher] Port file created: {e.Name}");
-                    Task.Delay(500).ContinueWith(_ => RefreshInstances());
-                };
-
-                _portFileWatcher.Changed += (s, e) =>
-                {
-                    System.Diagnostics.Debug.WriteLine($"[PortFileWatcher] Port file changed: {e.Name}");
-                    Task.Delay(500).ContinueWith(_ => RefreshInstances());
-                };
-
-                _portFileWatcher.EnableRaisingEvents = true;
-                LogMessage("Port file watcher initialized");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error initializing port file watcher: {ex.Message}");
-            }
-        }
-
-        private void InitializePresenters()
-        {
-            _configPresenter = new ConfigPresenter(_configManager, LogMessage);
-            _config = _configPresenter.LoadConfiguration(); 
-
-            _proxyPresenter = new ProxyPresenter(_proxyManager, _validationService, LogMessage);
-            
-            _gridPresenter = new GridPresenter(
-                dataGridViewInstances, 
-                _proxyManager, 
-                _validationService, 
-                _config, 
-                LogMessage);
         }
 
         private void InitializeEventHandlers()
         {
             buttonOpenLogs.Click += ButtonOpenLogs_Click;
 
+            var serveHandler = new ServeActionHandler(
+                _appPresenter.ServeSessionService,
+                _appPresenter.ConfigService,
+                () => _currentInstances,
+                LogToService);
+
             _eventCoordinator = new ViewEventCoordinator(
                 dataGridViewInstances,
                 contextMenuStripGrid,
-                _proxyManager,
-                _validationService,
+                _appPresenter.ValidationService,
                 _gridPresenter,
-                _proxyPresenter,
-                _configPresenter,
-                () => _config,
                 () => _currentInstances,
-                RefreshInstances
+                (port) => _appPresenter.ProxyManager.IsRunning(port),
+                RefreshInstances,
+                ToggleRowExpansion,
+                serveHandler
             );
+
+            // Wire up Domain Events from View
+            _eventCoordinator.ConfigRequested += (s, args) => 
+            {
+                _appPresenter.ConfigService.UpdateRule(args.ModelName, args.FixedPort, args.Auto, args.AllowNetwork);
+            };
+
+            _eventCoordinator.ActionRequested += async (s, args) =>
+            {
+                switch (args.Action)
+                {
+                    case RowActionType.Start:
+                        await _appPresenter.ProxyPresenter.StartProxyAsync(args.Instance, args.FixedPort, args.AllowNetwork);
+                        break;
+
+                    case RowActionType.Stop:
+                        int activeCount = _appPresenter.ProxyManager.GetActiveConnections(args.FixedPort);
+                        if (activeCount > 0)
+                        {
+                            var result = MessageBox.Show(
+                                $"There are {activeCount} active connection(s) to this proxy.\nStopping it will disconnect them.\n\nAre you sure you want to stop?",
+                                "Active Connections Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+                            if (result != DialogResult.Yes) return;
+                        }
+                        _appPresenter.ProxyPresenter.StopProxy(args.FixedPort, args.Instance?.WorkspaceId);
+                        break;
+
+                    case RowActionType.Remove:
+                        _appPresenter.ConfigService.RemoveRule(args.ModelName);
+                        break;
+                }
+            };
             
             dataGridViewInstances.CellContentClick += _eventCoordinator.OnCellContentClick;
             dataGridViewInstances.CellValueChanged += _eventCoordinator.OnCellValueChanged;
@@ -236,32 +242,35 @@ namespace PBIPortWrapper
             dataGridViewInstances.CellValidating += _eventCoordinator.OnCellValidating;
             dataGridViewInstances.CellEnter += _eventCoordinator.OnCellEnter;
             
-            timerUpdate.Tick += (s, e) => RefreshInstances();
             this.FormClosing += MainForm_FormClosing;
             this.Resize += MainForm_Resize;
+            // Snapshots arriving before the handle exists are dropped by BeginInvoke;
+            // request a fresh scan once the form is actually visible.
+            this.Shown += (s, e) => RefreshInstances();
             
             checkBoxMinimizeToTray.CheckedChanged += (s, e) => 
             {
-                if (_config != null)
+                if (_appPresenter.ConfigService.Current != null)
                 {
-                    _config.MinimizeToTray = checkBoxMinimizeToTray.Checked;
-                    _configPresenter.SaveConfiguration(_config);
+                    _appPresenter.ConfigService.SetMinimizeToTray(checkBoxMinimizeToTray.Checked);
                 }
             };
             
-            if (_config != null)
+            if (_appPresenter.ConfigService.Current != null)
             {
-                checkBoxMinimizeToTray.Checked = _config.MinimizeToTray;
+                checkBoxMinimizeToTray.Checked = _appPresenter.ConfigService.Current.MinimizeToTray;
             }
         }
 
         private void InitializeContextMenu()
         {
-            var openFolderItem = new ToolStripMenuItem("Open Folder");
+            // "Workspace", not "Folder"/"Path": these point at the AS workspace
+            // dir, not the .pbix location (#59 polish)
+            var openFolderItem = new ToolStripMenuItem("Open Workspace Folder");
             openFolderItem.Click += _eventCoordinator.ContextMenuHandler.OnOpenFolderClick;
             contextMenuStripGrid.Items.Add(openFolderItem);
 
-            var copyPathItem = new ToolStripMenuItem("Copy Path");
+            var copyPathItem = new ToolStripMenuItem("Copy Workspace Path");
             copyPathItem.Click += _eventCoordinator.ContextMenuHandler.OnCopyPathClick;
             contextMenuStripGrid.Items.Add(copyPathItem);
             
@@ -269,30 +278,46 @@ namespace PBIPortWrapper
             dataGridViewInstances.MouseDown += _eventCoordinator.OnMouseDown;
         }
 
-                        private void RefreshInstances()
+        private void ToggleRowExpansion(int pid)
         {
-            if (!_detector.IsWorkspacePathValid()) return;
+            if (_expandedPids.Contains(pid)) _expandedPids.Remove(pid);
+            else _expandedPids.Add(pid);
+            // Use cached data for instant UI updates (avoids slow WMI re-scan)
+            _gridPresenter.RefreshGrid(_currentInstances, _appPresenter.ConfigService.Current, _expandedPids);
+            _rowDetailsManager.SyncDetailsPanels(_currentInstances, _expandedPids);
+        }
 
-            var detectedInstances = _detector.DetectRunningInstances();
-            _currentInstances = detectedInstances;
+        private void RefreshInstances()
+        {
+            _appPresenter.Monitor.RequestRefresh();
+        }
 
-            _gridPresenter.RefreshGrid(detectedInstances, _config);
-            _proxyPresenter.ProcessAutoConnect(detectedInstances, dataGridViewInstances);
+        private void ApplyInstances(IReadOnlyList<PowerBIInstance> instances)
+        {
+            if (IsDisposed || Disposing) return;
+
+            try
+            {
+                _currentInstances = instances.ToList();
+                _gridPresenter.RefreshGrid(_currentInstances, _appPresenter.ConfigService.Current, _expandedPids);
+                _rowDetailsManager.SyncDetailsPanels(_currentInstances, _expandedPids);
+                _proxyPresenter.ProcessAutoConnect(_currentInstances, _appPresenter.ConfigService.Current);
+                _appPresenter.ServeSessionService.OnInstancesChanged(_currentInstances);
+                _appPresenter.ServeRecovery.OnSnapshot(_currentInstances);
+            }
+            catch (Exception ex)
+            {
+                LogToService($"Error applying instance snapshot: {ex.Message}");
+            }
         }
 
         private void ButtonOpenLogs_Click(object sender, EventArgs e)
         {
             try
             {
-                string logFile = _configManager.GetLogFilePath();
-                if (File.Exists(logFile))
-                {
-                    System.Diagnostics.Process.Start("notepad.exe", logFile);
-                }
-                else
-                {
-                    MessageBox.Show("Log file does not exist yet.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                string logFile = _appPresenter.ConfigManager.GetLogFilePath();
+                if (File.Exists(logFile)) System.Diagnostics.Process.Start("notepad.exe", logFile);
+                else MessageBox.Show("Log file does not exist yet.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -300,78 +325,67 @@ namespace PBIPortWrapper
             }
         }
 
-                private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (_portFileWatcher != null)
+            if (_appPresenter.ProxyManager.HasRunningProxies())
             {
-                _portFileWatcher.EnableRaisingEvents = false;
-                _portFileWatcher.Dispose();
-            }
+                var result = MessageBox.Show(
+                    "There are active Power BI proxies running.\nClosing the application will stop them.\n\nAre you sure you want to exit?",
+                    "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
 
-            if (_proxyManager.GetRunningPorts().Any())
-            {
-                var result = MessageBox.Show("Proxies are currently running. Are you sure you want to exit?", "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                if (result == DialogResult.No)
+                if (result != DialogResult.Yes)
                 {
                     e.Cancel = true;
                     return;
                 }
             }
-
-            _proxyPresenter.StopAll();
-            _configPresenter.SaveConfiguration(_config);
+            _appPresenter.StopAll();
         }
 
         private void MainForm_Resize(object sender, EventArgs e)
         {
-            if (this.WindowState == FormWindowState.Minimized && checkBoxMinimizeToTray.Checked)
+            if (WindowState == FormWindowState.Minimized && 
+                _appPresenter.ConfigService.Current != null && 
+                _appPresenter.ConfigService.Current.MinimizeToTray)
             {
-                this.Hide();
+                Hide();
                 notifyIcon.Visible = true;
+                notifyIcon.ShowBalloonTip(3000, "PBI Port Wrapper", "Minimised to tray", ToolTipIcon.Info);
             }
         }
+        
+        private void notifyIcon_MouseDoubleClick(object sender, MouseEventArgs e) => ShowFromTray();
 
-        private void NotifyIcon_DoubleClick(object sender, EventArgs e)
+        private void NotifyIcon_DoubleClick(object sender, EventArgs e) => ShowFromTray();
+
+        private void ToolStripMenuItemShow_Click(object sender, EventArgs e) => ShowFromTray();
+
+        private void ShowFromTray()
         {
-            this.Show();
-            this.WindowState = FormWindowState.Normal;
+            Show();
+            WindowState = FormWindowState.Normal;
             notifyIcon.Visible = false;
         }
 
-        private void ToolStripMenuItemShow_Click(object sender, EventArgs e)
-        {
-            this.Show();
-            this.WindowState = FormWindowState.Normal;
-            notifyIcon.Visible = false;
-        }
+        private void ToolStripMenuItemExit_Click(object sender, EventArgs e) => this.Close();
 
-        private void ToolStripMenuItemExit_Click(object sender, EventArgs e)
-        {
-            this.Close();
-        }
-
-        private void ToolStripMenuItemCopy_Click(object sender, EventArgs e)
-        {
+        private void ToolStripMenuItemCopy_Click(object sender, EventArgs e) =>
             _eventCoordinator.ContextMenuHandler.OnCopyConnectionStringClick(sender, e);
+
+        private void LogToService(string message)
+        {
+           _appPresenter?.LoggerService?.LogInfo("App", message);
         }
 
-        private void LogMessage(string message)
+        private void UpdateLogDisplay(string message)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action(() => LogMessage(message)));
+                Invoke(new Action(() => UpdateLogDisplay(message)));
                 return;
             }
-
-            string timestampedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
-            textBoxLog.AppendText($"{timestampedMessage}{Environment.NewLine}");
-            
-            try
-            {
-                string logFile = _configManager.GetLogFilePath();
-                File.AppendAllText(logFile, timestampedMessage + Environment.NewLine);
-            }
-            catch { }
+            textBoxLog.AppendText($"{message}{Environment.NewLine}");
         }
+
     }
 }
