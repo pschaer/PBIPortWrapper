@@ -4,12 +4,14 @@
 		<TargetFramework>net8.0-windows</TargetFramework>
 		<Nullable>enable</Nullable>
 		<UseWindowsForms>true</UseWindowsForms>
+		<!-- UseWPF only for UIAutomationClient (UiaDirtyStateProbe, #59); no WPF UI exists -->
+		<UseWPF>true</UseWPF>
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<!-- Version Information -->
-		<Version>0.3.0</Version>
-		<AssemblyVersion>0.3.0.0</AssemblyVersion>
-		<FileVersion>0.3.0.0</FileVersion>
+		<Version>0.5.0</Version>
+		<AssemblyVersion>0.5.0.0</AssemblyVersion>
+		<FileVersion>0.5.0.0</FileVersion>
 
 		<!-- Product Information -->
 		<Product>PBI Port Wrapper</Product>
@@ -20,9 +22,15 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AnalysisServices.AdomdClient" Version="19.106.1" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="System.Management" Version="10.0.0" />
+		<!-- Core owns all non-UI logic and its package dependencies (transitive) -->
+		<ProjectReference Include="Core\PBIPortWrapper.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Core and Tests are separate projects; keep them out of this project's compile glob -->
+		<Compile Remove="Core\**;Tests\**" />
+		<None Remove="Core\**;Tests\**" />
+		<EmbeddedResource Remove="Core\**;Tests\**" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -14,227 +14,198 @@ namespace PBIPortWrapper.Presenters
         private readonly ProxyManager _proxyManager;
         private readonly ProxyConfiguration _config;
         private readonly Action<string> _logCallback;
-        private readonly Action<DataGridViewRow, string, Color, string, bool> _setRowStatus;
+        private readonly RowStatusPainter _painter;
+        private readonly DetailRowManager _detailRowManager;
 
         public GridSyncHelper(
             DataGridView dataGridView,
             ProxyManager proxyManager,
             ProxyConfiguration config,
             Action<string> logCallback,
-            Action<DataGridViewRow, string, Color, string, bool> setRowStatus)
+            RowStatusPainter painter)
         {
             _dataGridView = dataGridView;
             _proxyManager = proxyManager;
             _config = config;
             _logCallback = logCallback;
-            _setRowStatus = setRowStatus;
+            _painter = painter;
+            _detailRowManager = new DetailRowManager();
         }
 
-                                public void RefreshGrid(List<PowerBIInstance> instances)
-        {
-            RefreshGrid(instances, _config);
-        }
+        public void RefreshGrid(List<PowerBIInstance> instances) => RefreshGrid(instances, _config);
 
-                public void RefreshGrid(List<PowerBIInstance> instances, ProxyConfiguration config)
+        public void RefreshGrid(List<PowerBIInstance> instances, ProxyConfiguration config, HashSet<int> expandedPids = null)
         {
             var processedRows = new HashSet<DataGridViewRow>();
 
-            // 1. Update existing rows with detected instances
             foreach (var instance in instances)
             {
-                DataGridViewRow row = null;
-
-                // Priority 1: Match by ProcessId (Tag)
-                row = _dataGridView.Rows
-                    .Cast<DataGridViewRow>()
-                    .FirstOrDefault(r => (r.Tag as int?) == instance.ProcessId);
-
-                // Priority 2: Match by Name (First come, first served)
-                if (row == null)
-                {
-                    row = _dataGridView.Rows
-                        .Cast<DataGridViewRow>()
-                        .FirstOrDefault(r => 
-                        {
-                            return r.Cells["colModelName"].Value?.ToString() == instance.FileName && r.Tag == null;
-                        });
-                }
+                var row = FindRow(instance);
 
                 if (row == null)
                 {
-                    // New Row
-                    int rowIndex = _dataGridView.Rows.Add();
-                    row = _dataGridView.Rows[rowIndex];
-                    
-                    // Apply saved rule if exists
-                    var rule = config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
-
-                    // CHECK: Is this rule already active on another row?
-                    bool isRuleActive = false;
-                    if (rule != null)
-                    {
-                        foreach (DataGridViewRow r in _dataGridView.Rows)
-                        {
-                            if (r == row) continue;
-                            
-                            string rName = r.Cells["colModelName"].Value?.ToString();
-                            if (rName == instance.FileName)
-                            {
-                                if (r.Cells["colFixedPort"].Value != null && 
-                                    !string.IsNullOrEmpty(r.Cells["colFixedPort"].Value.ToString()))
-                                {
-                                    isRuleActive = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (rule != null && !isRuleActive)
-                    {
-                        row.Cells["colFixedPort"].Value = rule.FixedPort;
-                        row.Cells["colAuto"].Value = rule.AutoConnect;
-                        row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
-                    }
-                    else
-                    {
-                        row.Cells["colFixedPort"].Value = null; 
-                        row.Cells["colAuto"].Value = false;
-                        row.Cells["colNetwork"].Value = false;
-                        
-                        if (isRuleActive)
-                        {
-                            _logCallback($"Duplicate instance detected for '{instance.FileName}'. Configuration not applied to avoid conflict.");
-                        }
-                    }
-                }
-
-                // MERGE LOGIC
-                if (row != null)
-                {
-                    var offlineRow = _dataGridView.Rows
-                        .Cast<DataGridViewRow>()
-                        .FirstOrDefault(r => 
-                            r != row && 
-                            r.Tag == null && 
-                            r.Cells["colModelName"].Value?.ToString() == instance.FileName);
-
-                    if (offlineRow != null)
-                    {
-                        if (offlineRow.Cells["colFixedPort"].Value != null)
-                            row.Cells["colFixedPort"].Value = offlineRow.Cells["colFixedPort"].Value;
-                            
-                        row.Cells["colAuto"].Value = offlineRow.Cells["colAuto"].Value;
-                        row.Cells["colNetwork"].Value = offlineRow.Cells["colNetwork"].Value;
-                        
-                        _dataGridView.Rows.Remove(offlineRow);
-                        _logCallback($"Merged offline config for '{instance.FileName}' into running instance.");
-                    }
-                }
-
-                // Update Row Data
-                row.Tag = instance.ProcessId;
-                row.Cells["colModelName"].Value = instance.FileName;
-                row.Cells["colModelName"].ToolTipText = $"Name: {instance.FileName}\nPath: {instance.FilePath}";
-                row.Cells["colPbiPort"].Value = instance.Port;
-
-                // Update Status
-                int fixedPort = 0;
-                if (row.Cells["colFixedPort"].Value != null && int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int fp))
-                {
-                    fixedPort = fp;
-                }
-
-                if (fixedPort > 0 && _proxyManager.IsRunning(fixedPort))
-                {
-                    _setRowStatus(row, "Running", Color.Green, "Stop", true);
-                    int activeCount = _proxyManager.GetActiveConnections(fixedPort);
-                    row.Cells["colActive"].Value = activeCount;
+                    row = _dataGridView.Rows[_dataGridView.Rows.Add()];
+                    ApplyInitialConfig(row, instance, config);
                 }
                 else
                 {
-                    if (fixedPort > 0)
-                        _setRowStatus(row, "Ready", Color.Black, "Start", false);
-                    else
-                        _setRowStatus(row, "Ready", Color.Black, "Set Port", false);
-                    
-                    row.Cells["colActive"].Value = "";
+                    MergeOfflineConfig(row, instance);
                 }
 
+                UpdateRowData(row, instance, expandedPids);
                 processedRows.Add(row);
+
+                // Detail Row Logic
+                bool isExpanded = expandedPids?.Contains(instance.ProcessId) ?? false;
+                _detailRowManager.HandleDetailRow(_dataGridView, row.Index, isExpanded, instance.ProcessId);
+                
+                if (isExpanded && row.Index + 1 < _dataGridView.Rows.Count)
+                {
+                    var detailRow = _dataGridView.Rows[row.Index + 1];
+                    if (_detailRowManager.IsDetailRowFor(detailRow, instance.ProcessId))
+                        processedRows.Add(detailRow);
+                }
+
+                _painter.Paint(row);
             }
 
-            // 2. Handle rows that are NOT in the detected list
-            var rowsToRemove = new List<DataGridViewRow>();
-            
+            RemoveStaleRows(processedRows, config);
+            EnsureConfigRows(config);
+        }
+
+        private DataGridViewRow FindRow(PowerBIInstance instance)
+        {
+            // Identity is the workspace dir name: unique per session, never 0/unknown
+            // (unlike ProcessId, which is 0 when WMI denies CommandLine access).
+            return _dataGridView.Rows.Cast<DataGridViewRow>()
+                .FirstOrDefault(r => (r.Tag as string) == instance.WorkspaceId)
+                ?? _dataGridView.Rows.Cast<DataGridViewRow>()
+                .FirstOrDefault(r => r.Cells["colModelName"].Value?.ToString() == instance.FileName && !IsDetail(r));
+        }
+
+        private bool IsDetail(DataGridViewRow row) => _detailRowManager.IsDetailRow(row);
+
+        private void ApplyInitialConfig(DataGridViewRow row, PowerBIInstance instance, ProxyConfiguration config)
+        {
+            var rule = config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
+            bool isActive = rule != null && _dataGridView.Rows.Cast<DataGridViewRow>()
+                .Any(r => r != row && !IsDetail(r) && r.Cells["colModelName"].Value?.ToString() == instance.FileName && 
+                          r.Cells["colFixedPort"].Value?.ToString().Length > 0);
+
+            if (rule != null && !isActive)
+            {
+                row.Cells["colFixedPort"].Value = rule.FixedPort;
+                row.Cells["colAuto"].Value = rule.AutoConnect;
+                row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
+            }
+            else
+            {
+                row.Cells["colFixedPort"].Value = null;
+                row.Cells["colAuto"].Value = false;
+                row.Cells["colNetwork"].Value = false;
+                if (isActive) _logCallback($"Duplicate instance '{instance.FileName}'. Config skipped.");
+            }
+        }
+
+        private void MergeOfflineConfig(DataGridViewRow row, PowerBIInstance instance)
+        {
+            var offlineRow = _dataGridView.Rows.Cast<DataGridViewRow>()
+                .FirstOrDefault(r => r != row && !IsDetail(r) && r.Cells["colModelName"].Value?.ToString() == instance.FileName);
+
+            if (offlineRow != null)
+            {
+                if (offlineRow.Cells["colFixedPort"].Value != null)
+                    row.Cells["colFixedPort"].Value = offlineRow.Cells["colFixedPort"].Value;
+                row.Cells["colAuto"].Value = offlineRow.Cells["colAuto"].Value;
+                row.Cells["colNetwork"].Value = offlineRow.Cells["colNetwork"].Value;
+                
+                _dataGridView.Rows.Remove(offlineRow);
+                _logCallback($"Merged offline config for '{instance.FileName}'.");
+            }
+        }
+
+        private void UpdateRowData(DataGridViewRow row, PowerBIInstance instance, HashSet<int> expandedPids)
+        {
+            row.Tag = instance.WorkspaceId;
+
+            string newName = instance.FileName;
+            // Only update cell if value changed to prevent grid focus stealing
+            if (row.Cells["colModelName"].Value?.ToString() != newName)
+            {
+                row.Cells["colModelName"].Value = newName;
+                // "Workspace:" not "Path:" — FilePath is the AS workspace dir, not
+                // the .pbix (#59 polish); ViewContextMenuHandler parses this label.
+                row.Cells["colModelName"].ToolTipText = $"Name: {instance.FileName}\nWorkspace: {instance.FilePath}";
+            }
+
+            int newPort = instance.Port;
+            bool portChanged = true;
+            if (row.Cells["colPbiPort"].Value is int oldPort && oldPort == newPort)
+            {
+                portChanged = false;
+            }
+
+            if (portChanged)
+            {
+                row.Cells["colPbiPort"].Value = newPort;
+            }
+
+            string newExpand = (expandedPids?.Contains(instance.ProcessId) ?? false) ? "▼" : "▶";
+            if (row.Cells["colExpand"].Value?.ToString() != newExpand)
+            {
+                row.Cells["colExpand"].Value = newExpand;
+            }
+        }
+
+        private void RemoveStaleRows(HashSet<DataGridViewRow> processedRows, ProxyConfiguration config)
+        {
+            var toRemove = new List<DataGridViewRow>();
             foreach (DataGridViewRow row in _dataGridView.Rows)
             {
                 if (processedRows.Contains(row)) continue;
+                if (IsDetail(row)) { toRemove.Add(row); continue; }
 
-                int fixedPort = 0;
-                if (row.Cells["colFixedPort"].Value != null)
+                int port = 0;
+                if (row.Cells["colFixedPort"].Value != null) int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out port);
+
+                if (port > 0 && _proxyManager.IsRunning(port))
                 {
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
+                    _proxyManager.StopProxy(port);
+                    _logCallback($"Auto-stopped proxy {port} (PBI closed)");
                 }
 
-                if (fixedPort > 0 && _proxyManager.IsRunning(fixedPort))
-                {
-                    _proxyManager.StopProxy(fixedPort);
-                    _logCallback($"Auto-stopped proxy on port {fixedPort} (PBI closed)");
-                }
-
-                string modelName = row.Cells["colModelName"].Value?.ToString();
-                
-                var rule = config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
-
-                if (rule != null)
+                string name = row.Cells["colModelName"].Value?.ToString();
+                if (config.PortMappings.Any(r => r.ModelNamePattern == name))
                 {
                     row.Tag = null;
                     row.Cells["colPbiPort"].Value = "";
-                    row.Cells["colModelName"].ToolTipText = $"Name: {modelName}\n(Offline)";
-                    
-                    _setRowStatus(row, "Offline", Color.Gray, "Remove", false); 
-                    row.Cells["colActive"].Value = "";
+                    row.Cells["colExpand"].Value = "";
+                    row.Cells["colModelName"].ToolTipText = $"Name: {name}\n(Offline)";
+                    _painter.PaintOffline(row);
                 }
                 else
                 {
-                    rowsToRemove.Add(row);
+                    toRemove.Add(row);
                 }
             }
+            toRemove.ForEach(r => _dataGridView.Rows.Remove(r));
+        }
 
-                        foreach (var gridRow in rowsToRemove)
-            {
-                _dataGridView.Rows.Remove(gridRow);
-            }
-            
-                        // 3. Ensure all saved configs have a row
+        private void EnsureConfigRows(ProxyConfiguration config)
+        {
             foreach (var rule in config.PortMappings)
             {
-                bool exists = false;
-                foreach (DataGridViewRow row in _dataGridView.Rows)
-                {
-                    string rowName = row.Cells["colModelName"].Value?.ToString();
-                    if (rowName == rule.ModelNamePattern)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
+                if (_dataGridView.Rows.Cast<DataGridViewRow>().Any(r => !IsDetail(r) && r.Cells["colModelName"].Value?.ToString() == rule.ModelNamePattern)) continue;
 
-                if (!exists)
-                {
-                    int rowIndex = _dataGridView.Rows.Add();
-                    DataGridViewRow row = _dataGridView.Rows[rowIndex];
-                    
-                    row.Cells["colModelName"].Value = rule.ModelNamePattern;
-                    row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\n(Offline)";
-                    row.Cells["colFixedPort"].Value = rule.FixedPort;
-                    row.Cells["colAuto"].Value = rule.AutoConnect;
-                    row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
-                    row.Cells["colPbiPort"].Value = "";
-                    _setRowStatus(row, "Offline", Color.Gray, "Remove", false);
-                    row.Cells["colActive"].Value = "";
-                }
+                var row = _dataGridView.Rows[_dataGridView.Rows.Add()];
+                row.Cells["colModelName"].Value = rule.ModelNamePattern;
+                row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\n(Offline)";
+                row.Cells["colFixedPort"].Value = rule.FixedPort;
+                row.Cells["colAuto"].Value = rule.AutoConnect;
+                row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
+                row.Cells["colPbiPort"].Value = "";
+                row.Cells["colExpand"].Value = "";
+                _painter.PaintOffline(row);
             }
         }
     }

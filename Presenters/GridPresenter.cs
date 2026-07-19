@@ -8,45 +8,46 @@ using PBIPortWrapper.Services;
 
 namespace PBIPortWrapper.Presenters
 {
-    // FILE SIZE: Current=~100 lines (Reduced from 300)
-    // MAX 300 lines - enforced in code review
+    // FILE SIZE: MAX 250 lines - enforced by build target
     public class GridPresenter
     {
         private readonly DataGridView _dataGridView;
-        private readonly ProxyManager _proxyManager;
+        private readonly RowStatusPainter _painter;
         private readonly GridSyncHelper _syncHelper;
-        
-        // NOTE: Config is READ-ONLY in Presenter. Writes must go through ConfigPresenter.
-        // We don't store _config here anymore, it's in the helper.
+        private readonly DetailRowManager _detailRowManager = new DetailRowManager();
+
+        // NOTE: Config is READ-ONLY in Presenter. Writes must go through ConfigService.
 
         public GridPresenter(
-            DataGridView dataGridView, 
-            ProxyManager proxyManager, 
-            ValidationService validationService, 
+            DataGridView dataGridView,
+            ProxyManager proxyManager,
+            ValidationService validationService,
             ProxyConfiguration config,
+            Func<string, ServeSession> sessionLookup,
+            Func<string, PortMappingRule> ruleLookup,
             Action<string> logCallback)
         {
             _dataGridView = dataGridView;
-            _proxyManager = proxyManager;
-            
-            // Initialize Helper
+
+            _painter = new RowStatusPainter(
+                proxyManager, sessionLookup, ruleLookup, SetRowStatus, logCallback);
+
             _syncHelper = new GridSyncHelper(
-                dataGridView, 
-                proxyManager, 
-                config, 
-                logCallback, 
-                SetRowStatus // Pass delegate
-            );
+                dataGridView,
+                proxyManager,
+                config,
+                logCallback,
+                _painter);
         }
 
-                public void RefreshGrid(List<PowerBIInstance> instances)
+        public void RefreshGrid(List<PowerBIInstance> instances)
         {
             _syncHelper.RefreshGrid(instances);
         }
 
-        public void RefreshGrid(List<PowerBIInstance> instances, ProxyConfiguration config)
+        public void RefreshGrid(List<PowerBIInstance> instances, ProxyConfiguration config, HashSet<int> expandedPids)
         {
-            _syncHelper.RefreshGrid(instances, config);
+            _syncHelper.RefreshGrid(instances, config, expandedPids);
         }
 
         public void SetRowStatus(DataGridViewRow row, string status, Color color, string actionText, bool isReadOnly)
@@ -58,40 +59,43 @@ namespace PBIPortWrapper.Presenters
             row.Cells["colNetwork"].ReadOnly = isReadOnly;
         }
 
-        public void UpdateGridStatus(int fixedPort, bool isRunning)
+        /// <summary>
+        /// Event path (proxy started/stopped, serve session started/ended):
+        /// repaints the rows on the given fixed port from current state.
+        /// </summary>
+        public void UpdateGridStatus(int fixedPort)
         {
             if (_dataGridView.InvokeRequired)
             {
-                _dataGridView.Invoke(new Action(() => UpdateGridStatus(fixedPort, isRunning)));
+                _dataGridView.Invoke(new Action(() => UpdateGridStatus(fixedPort)));
                 return;
             }
 
             foreach (DataGridViewRow row in _dataGridView.Rows)
             {
-                if (row.Cells["colFixedPort"].Value != null && 
+                if (row.Cells["colFixedPort"].Value != null &&
                     int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int fp) && fp == fixedPort)
                 {
-                    if (isRunning)
-                    {
-                        SetRowStatus(row, "Running", Color.Green, "Stop", true);
-                        int activeCount = _proxyManager.GetActiveConnections(fixedPort);
-                        row.Cells["colActive"].Value = activeCount;
-                    }
-                    else
-                    {
-                        string pbiPort = row.Cells["colPbiPort"].Value?.ToString();
-                        if (!string.IsNullOrEmpty(pbiPort))
-                        {
-                            SetRowStatus(row, "Ready", Color.Black, "Start", false);
-                        }
-                        else
-                        {
-                            SetRowStatus(row, "Offline", Color.Gray, "Remove", false);
-                        }
-                        row.Cells["colActive"].Value = "";
-                    }
+                    _painter.Paint(row);
                 }
             }
+        }
+
+        /// <summary>
+        /// Repaints every main row; used when serve/config state changes without a
+        /// new instance snapshot (alias saved, session started or ended).
+        /// </summary>
+        public void RepaintAllRows()
+        {
+            if (!_dataGridView.IsHandleCreated) return;
+            _dataGridView.BeginInvoke(new Action(() =>
+            {
+                foreach (DataGridViewRow row in _dataGridView.Rows)
+                {
+                    if (!_detailRowManager.IsDetailRow(row))
+                        _painter.Paint(row);
+                }
+            }));
         }
 
         public void UpdateActiveConnections(int fixedPort, int count)
@@ -104,7 +108,7 @@ namespace PBIPortWrapper.Presenters
 
             foreach (DataGridViewRow row in _dataGridView.Rows)
             {
-                if (row.Cells["colFixedPort"].Value != null && 
+                if (row.Cells["colFixedPort"].Value != null &&
                     int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int fp) && fp == fixedPort)
                 {
                     row.Cells["colActive"].Value = count;

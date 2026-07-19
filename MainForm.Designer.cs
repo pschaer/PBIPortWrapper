@@ -39,7 +39,6 @@
             this.textBoxLog = new System.Windows.Forms.TextBox();
             this.panelFill = new System.Windows.Forms.Panel();
             this.dataGridViewInstances = new System.Windows.Forms.DataGridView();
-            this.timerUpdate = new System.Windows.Forms.Timer(this.components);
             this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
             this.contextMenuStripTray = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.toolStripMenuItemShow = new System.Windows.Forms.ToolStripMenuItem();
@@ -170,12 +169,7 @@
             this.dataGridViewInstances.RowTemplate.Height = 25;
             this.dataGridViewInstances.Size = new System.Drawing.Size(776, 216);
             this.dataGridViewInstances.TabIndex = 0;
-            // 
-            // timerUpdate
-            // 
-            this.timerUpdate.Enabled = true;
-            this.timerUpdate.Interval = 3000;
-            // 
+            //
             // notifyIcon
             // 
             this.notifyIcon.ContextMenuStrip = this.contextMenuStripTray;
@@ -292,7 +286,6 @@
         private System.Windows.Forms.Button buttonRefresh;
         private System.Windows.Forms.TextBox textBoxLog;
         private System.Windows.Forms.Button buttonOpenLogs;
-        private System.Windows.Forms.Timer timerUpdate;
         private System.Windows.Forms.NotifyIcon notifyIcon;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripTray;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemShow;

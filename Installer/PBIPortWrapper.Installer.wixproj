@@ -1,0 +1,35 @@
+<Project Sdk="WixToolset.Sdk/5.0.0">
+  <PropertyGroup>
+    <OutputName>PBIPortWrapper</OutputName>
+    <OutputType>Package</OutputType>
+    <Version>0.3.0</Version>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.0" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PBIPortWrapper.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <HarvestDirectory Include="..\Publish">
+      <ComponentGroupName>HarvestedComponents</ComponentGroupName>
+      <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
+      <SuppressRootDirectory>true</SuppressRootDirectory>
+      <PreprocessorVariable>var.PublishDir</PreprocessorVariable>
+      <!-- Exclude the main EXE and JSON which we define manually -->
+      <!-- Note: Exclusion in WiX v4 wixproj can be tricky, relying on transforms usually.
+           For Phase 1 simplicity, I'll let it double-harvest and see if it errors, 
+           OR I will just harvest *dependencies* if I can separate them. 
+           Actually, let's try strict harvesting and reference the file by ID if possible.
+           If Heat generates stable IDs like 'fil_PBIPortWrapper_exe', I can use that. 
+           BUT, safest is to NOT manual define the EXE file, just the shortcut component pointing to it? 
+           No, Shortcut needs to be child of a File or have a Target properly set. 
+           
+           DECISION: I will manual define the main EXE and critical files, and use Harvest for 'Dependencies' folder if I can move them.
+           Actually, let's just Manual Define the core files I need (20 files). It's cleaner than fighting Heat for a basic installer. -->
+    </HarvestDirectory>
+  </ItemGroup>
+    <!-- REMOVING HarvestDirectory for now to avoid ID conflicts. Will paste manual list in Package.wxs -->
+</Project>

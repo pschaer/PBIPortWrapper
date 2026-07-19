@@ -1,0 +1,129 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="PBI Port Wrapper" Manufacturer="Pascal Schär" Version="0.3.1" UpgradeCode="266f7928-95c2-46f3-8126-c8c191789dfe">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="AppComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="ExternalToolRegistration" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" /> 
+    <!-- Create a dummy license file or remove UI logic later if it fails -->
+
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="PBI Port Wrapper" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="PBI Port Wrapper" />
+    </StandardDirectory>
+
+    <!-- External Tools Directory: 
+         Path: C:\Program Files (x86)\Common Files\Microsoft Shared\Power BI Desktop\External Tools 
+         We use CommonFilesFolder which maps to x86 in an x86 package. -->
+    <StandardDirectory Id="CommonFilesFolder">
+        <Directory Id="MicrosoftShared" Name="Microsoft Shared">
+            <Directory Id="PowerBIDesktop" Name="Power BI Desktop">
+                <Directory Id="ExternalTools" Name="External Tools" />
+            </Directory>
+        </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
+      <Component>
+        <File Source="Publish\PBIPortWrapper.exe" Id="PBIPortWrapperExe" />
+      </Component>
+      <Component>
+        <File Source="Publish\PBIPortWrapper.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\PBIPortWrapper.deps.json" />
+      </Component>
+      <Component>
+        <File Source="Publish\PBIPortWrapper.runtimeconfig.json" />
+      </Component>
+      <Component>
+        <File Source="Publish\WebView2Loader.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Newtonsoft.Json.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.Web.WebView2.Core.dll" />
+      </Component>
+       <Component>
+        <File Source="Publish\Microsoft.Web.WebView2.WinForms.dll" />
+      </Component>
+        <Component>
+        <File Source="Publish\Microsoft.Web.WebView2.Wpf.dll" />
+      </Component>
+      
+      <!-- Analysis Services Dependencies -->
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.AdomdClient.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.Core.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.Tabular.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.Tabular.Json.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.Runtime.Core.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.AnalysisServices.Runtime.Windows.dll" />
+      </Component>
+
+      <!-- System Dependencies -->
+      <Component>
+        <File Source="Publish\System.Management.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\System.CodeDom.dll" />
+      </Component>
+
+      <!-- Identity & Security Dependencies -->
+      <Component>
+        <File Source="Publish\Microsoft.Identity.Client.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.Identity.Client.NativeInterop.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\Microsoft.IdentityModel.Abstractions.dll" />
+      </Component>
+      <Component>
+        <File Source="Publish\msalruntime.dll" />
+      </Component>
+      <!-- Add other DLLs as needed for basic functionality. 
+           For this 'Basic' phase, we assume these are the core. 
+           If the app crashes due to missing AnalysisServices DLLs, we will add them. -->
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="*">
+      <Shortcut Id="ApplicationStartMenuShortcut"
+                Name="PBI Port Wrapper"
+                Description="PBI Port Wrapper"
+                Target="[INSTALLFOLDER]PBIPortWrapper.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\PBIPortWrapper" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="ExternalToolRegistration" Directory="ExternalTools" Guid="*">
+      <!-- We copy the pbitool.json file. It must exist in the source directory. -->
+      <File Source="..\pbiportwrapper.pbitool.json" Name="pbiportwrapper.pbitool.json" />
+    </Component>
+
+  </Package>
+</Wix>
