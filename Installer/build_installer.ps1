@@ -1,41 +1,46 @@
-# Build Installer Script
+<#
+    Builds the PBI Port Wrapper MSI.
+
+    1. Publishes the app as a single-file, self-contained win-x64 build (the same
+       convention the release zip uses) into .\Publish.
+    2. Builds the WiX package (WixToolset.Sdk + UI extension are restored from NuGet).
+    3. Copies the resulting MSI to .\Output\PBIPortWrapper.msi.
+
+    Run from anywhere:  powershell -File Installer\build_installer.ps1
+#>
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Resolve-Path "$PSScriptRoot\.."
+# The machine/user PATH is not always inherited by the calling shell on this box.
+$env:PATH = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+            [Environment]::GetEnvironmentVariable("Path","User")
+
 $installerRoot = $PSScriptRoot
-$publishDir = Join-Path $installerRoot "Publish"
-$outputDir = Join-Path $installerRoot "Output"
-$msiPath = Join-Path $outputDir "PBIPortWrapper.msi"
+$projectRoot   = (Resolve-Path (Join-Path $installerRoot "..")).Path
+$publishDir    = Join-Path $installerRoot "Publish"
+$outputDir     = Join-Path $installerRoot "Output"
+$wixproj       = Join-Path $installerRoot "PBIPortWrapper.Installer.wixproj"
 
-# Ensure WiX tool is installed/available
-Write-Host "Checking for WiX tool..."
-if (-not (Get-Command wix -ErrorAction SilentlyContinue)) {
-    Write-Host "WiX tool not found. Installing..."
-    dotnet tool install --global wix
-}
-
-# Clean Output
-if (Test-Path $outputDir) { Remove-Item $outputDir -Recurse -Force }
-New-Item -ItemType Directory -Path $outputDir | Out-Null
-
-# Clean and Re-Publish App
+# 1. Publish the application (single-file, self-contained, win-x64).
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
-New-Item -ItemType Directory -Path $publishDir | Out-Null
+Write-Host "==> Publishing application to $publishDir" -ForegroundColor Cyan
+dotnet publish (Join-Path $projectRoot "PBIPortWrapper.csproj") `
+    -c Release -r win-x64 --self-contained true `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:DebugType=None -p:DebugSymbols=false `
+    -o $publishDir
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 
-Write-Host "Publishing Application to $publishDir..."
-dotnet publish "$projectRoot\PBIPortWrapper.csproj" -c Release -r win-x64 --self-contained false -o $publishDir
+# 2. Build the MSI.
+Write-Host "==> Building MSI" -ForegroundColor Cyan
+dotnet build $wixproj -c Release
+if ($LASTEXITCODE -ne 0) { throw "wix build failed ($LASTEXITCODE)" }
 
-Write-Host "Ensuring WiX Extensions are available..."
-wix extension add WixToolset.UI.wixext --global
-wix extension add WixToolset.Util.wixext --global
+# 3. Stage the MSI to Output\.
+$msi = Get-ChildItem (Join-Path $installerRoot "bin") -Recurse -Filter "PBIPortWrapper.msi" `
+        -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $msi) { throw "MSI not found under $installerRoot\bin after build" }
 
-Write-Host "Building MSI with WiX..."
-# Note: We use -b $installerRoot so that Source="Publish\..." in Package.wxs resolves to InstallerRoot\Publish
-wix build "$installerRoot\Package.wxs" -o $msiPath -b $installerRoot -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext
-
-if (Test-Path $msiPath) {
-    Write-Host "Build Complete. Installer is at: $msiPath"
-}
-else {
-    Write-Error "Build failed. MSI not found at $msiPath"
-}
+if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
+$dest = Join-Path $outputDir "PBIPortWrapper.msi"
+Copy-Item $msi.FullName $dest -Force
+Write-Host "==> Installer built: $dest" -ForegroundColor Green

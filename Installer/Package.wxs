@@ -1,129 +1,91 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="PBI Port Wrapper" Manufacturer="Pascal Schär" Version="0.3.1" UpgradeCode="266f7928-95c2-46f3-8126-c8c191789dfe">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <!--
+    PBI Port Wrapper installer.
+
+    Payload is the v0.5 single-file, self-contained win-x64 publish, so the whole
+    application is exactly two files: PBIPortWrapper.exe and its runtime icon
+    Resources\app_icon.png (config.json and log.txt live under %AppData%, not here,
+    so installing into Program Files needs no runtime write access).
+
+    The package is intentionally x86 (the WiX default). On 64-bit Windows an x86
+    package resolves ProgramFilesFolder -> "Program Files (x86)" and
+    CommonFilesFolder -> "Program Files (x86)\Common Files\..." - and the x86
+    Common Files path is exactly where Power BI Desktop looks for External Tools
+    manifests, on every edition. The 64-bit app runs fine from the x86 location.
+    Keeping the package x86 lets us use the plain CommonFilesFolder id (no 6432
+    juggling) and keeps the install path in step with pbiportwrapper.pbitool.json.
+  -->
+
+  <Package Name="PBI Port Wrapper"
+           Manufacturer="Pascal Schär"
+           Version="!(bind.FileVersion.PBIPortWrapperExe)"
+           UpgradeCode="266f7928-95c2-46f3-8126-c8c191789dfe"
+           Scope="perMachine">
+
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Feature Id="Main">
+    <Feature Id="Main" Title="PBI Port Wrapper" Level="1">
       <ComponentGroupRef Id="AppComponents" />
-      <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="ExternalToolRegistration" />
     </Feature>
 
-    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
-    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" /> 
-    <!-- Create a dummy license file or remove UI logic later if it fails -->
-
+    <!-- Install locations -->
     <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="PBI Port Wrapper" />
+      <Directory Id="INSTALLFOLDER" Name="PBI Port Wrapper">
+        <Directory Id="ResourcesFolder" Name="Resources" />
+      </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="PBI Port Wrapper" />
+      <Directory Id="AppProgramsFolder" Name="PBI Port Wrapper" />
     </StandardDirectory>
 
-    <!-- External Tools Directory: 
-         Path: C:\Program Files (x86)\Common Files\Microsoft Shared\Power BI Desktop\External Tools 
-         We use CommonFilesFolder which maps to x86 in an x86 package. -->
+    <!-- Power BI Desktop External Tools registration directory (x86 Common Files) -->
     <StandardDirectory Id="CommonFilesFolder">
-        <Directory Id="MicrosoftShared" Name="Microsoft Shared">
-            <Directory Id="PowerBIDesktop" Name="Power BI Desktop">
-                <Directory Id="ExternalTools" Name="External Tools" />
-            </Directory>
+      <Directory Id="MsSharedFolder" Name="Microsoft Shared">
+        <Directory Id="PbiDesktopFolder" Name="Power BI Desktop">
+          <Directory Id="ExternalToolsFolder" Name="External Tools" />
         </Directory>
+      </Directory>
     </StandardDirectory>
 
-    <ComponentGroup Id="AppComponents" Directory="INSTALLFOLDER">
-      <Component>
-        <File Source="Publish\PBIPortWrapper.exe" Id="PBIPortWrapperExe" />
+    <!-- Application payload. The Start Menu shortcut is nested in the executable's
+         component so the exe (a per-machine file in Program Files) is the keypath -
+         this keeps the per-machine shortcut clean and avoids the HKCU/HKLM keypath
+         ambiguity ICE38/ICE43/ICE57 flag when a shortcut sits in its own component. -->
+    <Icon Id="AppIcon.exe" SourceFile="Publish\PBIPortWrapper.exe" />
+    <ComponentGroup Id="AppComponents">
+      <Component Directory="INSTALLFOLDER">
+        <File Id="PBIPortWrapperExe" Source="Publish\PBIPortWrapper.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcutItem"
+                    Directory="AppProgramsFolder"
+                    Name="PBI Port Wrapper"
+                    Description="Stable ports and database names for Power BI Desktop"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon.exe" />
+        </File>
+        <RemoveFolder Id="RemoveAppProgramsFolder" Directory="AppProgramsFolder" On="uninstall" />
       </Component>
-      <Component>
-        <File Source="Publish\PBIPortWrapper.dll" />
+      <Component Directory="ResourcesFolder">
+        <File Id="AppIconPng" Source="Publish\Resources\app_icon.png" KeyPath="yes" />
       </Component>
-      <Component>
-        <File Source="Publish\PBIPortWrapper.deps.json" />
-      </Component>
-      <Component>
-        <File Source="Publish\PBIPortWrapper.runtimeconfig.json" />
-      </Component>
-      <Component>
-        <File Source="Publish\WebView2Loader.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Newtonsoft.Json.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.Web.WebView2.Core.dll" />
-      </Component>
-       <Component>
-        <File Source="Publish\Microsoft.Web.WebView2.WinForms.dll" />
-      </Component>
-        <Component>
-        <File Source="Publish\Microsoft.Web.WebView2.Wpf.dll" />
-      </Component>
-      
-      <!-- Analysis Services Dependencies -->
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.AdomdClient.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.Core.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.Tabular.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.Tabular.Json.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.Runtime.Core.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.AnalysisServices.Runtime.Windows.dll" />
-      </Component>
-
-      <!-- System Dependencies -->
-      <Component>
-        <File Source="Publish\System.Management.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\System.CodeDom.dll" />
-      </Component>
-
-      <!-- Identity & Security Dependencies -->
-      <Component>
-        <File Source="Publish\Microsoft.Identity.Client.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.Identity.Client.NativeInterop.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\Microsoft.IdentityModel.Abstractions.dll" />
-      </Component>
-      <Component>
-        <File Source="Publish\msalruntime.dll" />
-      </Component>
-      <!-- Add other DLLs as needed for basic functionality. 
-           For this 'Basic' phase, we assume these are the core. 
-           If the app crashes due to missing AnalysisServices DLLs, we will add them. -->
     </ComponentGroup>
 
-    <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="*">
-      <Shortcut Id="ApplicationStartMenuShortcut"
-                Name="PBI Port Wrapper"
-                Description="PBI Port Wrapper"
-                Target="[INSTALLFOLDER]PBIPortWrapper.exe"
-                WorkingDirectory="INSTALLFOLDER" />
-      <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
-      <RegistryValue Root="HKCU" Key="Software\PBIPortWrapper" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+    <!-- Power BI External Tool manifest -->
+    <Component Id="ExternalToolRegistration" Directory="ExternalToolsFolder" Guid="*">
+      <File Id="PbiToolManifest"
+            Source="..\pbiportwrapper.pbitool.json"
+            Name="pbiportwrapper.pbitool.json"
+            KeyPath="yes" />
     </Component>
 
-    <Component Id="ExternalToolRegistration" Directory="ExternalTools" Guid="*">
-      <!-- We copy the pbitool.json file. It must exist in the source directory. -->
-      <File Source="..\pbiportwrapper.pbitool.json" Name="pbiportwrapper.pbitool.json" />
-    </Component>
+    <!-- Minimal UI: welcome + license, install to the default location so the
+         install path stays in step with the manifest's hard-coded exe path. -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
 
   </Package>
 </Wix>

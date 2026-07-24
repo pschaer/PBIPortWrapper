@@ -41,3 +41,22 @@ specific field.
 **Status:** Accepted architectural limitation to preserve the visual "Inline
 Expansion" design. Fixing this would require a complete UI rewrite (e.g.,
 Master-Detail sibling panels).
+
+
+## 3. Unsigned Installer / Executable
+**Issue:** The `PBIPortWrapper.msi` installer and the executable are not
+code-signed with an Authenticode certificate.
+
+**Impact:** On first run, Windows SmartScreen shows *"Windows protected your PC"*
+and Defender may prompt. Users must click **More info → Run anyway** to proceed.
+
+**Root Cause:** No code-signing certificate is in place. A trusted certificate
+carries an ongoing cost and, for standard (OV) certificates, still requires a
+SmartScreen reputation ramp.
+
+**Workaround:** Approve the SmartScreen prompt (**More info → Run anyway**), and
+verify the download against the release's published hash/size beforehand. The
+portable ZIP behaves the same way.
+
+**Status:** Accepted for now (see issue #35). Signing may be revisited if adoption
+warrants the cost. See [docs/installer.md](docs/installer.md) for details.
