@@ -368,6 +368,7 @@ FodyWeavers.xsd
 # Installer Artifacts
 Installer/Output/
 Installer/Publish/
+Installer/stage/
 temp_publish/
 
 # Local build/restore transcripts (were accidentally tracked pre-v0.5)

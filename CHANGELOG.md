@@ -2,6 +2,26 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.6.0] - 2026-07-24
+
+### Added - Windows Installer
+- **MSI installer** - `PBIPortWrapper.msi` installs the app to Program Files,
+  replacing the download-extract-run flow; the portable ZIP remains available (#33)
+- **Start Menu integration** - a "PBI Port Wrapper" entry that launches the app (#34)
+- **External Tool auto-registration** - the installer registers the app as a Power
+  BI Desktop External Tool, so it appears on the External Tools ribbon with no
+  manual `pbitool.json` copying (#5)
+- **Silent / unattended install** - standard `msiexec /qn` support for scripted and
+  Group Policy / SCCM / Intune deployment (#36)
+- **Installer documentation** - build, install, silent-install, and troubleshooting
+  guide in [docs/installer.md](docs/installer.md) (#38)
+
+### Notes
+- The installer and executable are **not code-signed**; Windows SmartScreen/Defender
+  warns on first run (*More info -> Run anyway*). Documented as a known limitation (#35).
+- Built from the single-file, self-contained win-x64 publish - the same binary the
+  portable ZIP ships.
+
 ## [0.5.1] - 2026-07-20
 
 ### Fixed

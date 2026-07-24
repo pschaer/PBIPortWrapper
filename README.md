@@ -56,9 +56,17 @@ Provider=MSOLAP;Data Source=localhost:55555;Initial Catalog=YourAlias
 
 ## 🚀 Quick Start
 
-1. **Download** the latest release
-2. **Extract** the ZIP file
-3. **Run** ```PBIPortWrapper.exe```
+**Install** one of two ways:
+
+- **Installer (recommended):** download `PBIPortWrapper.msi`, run it, and launch
+  from the Start Menu or the Power BI Desktop **External Tools** ribbon. It also
+  registers the External Tool automatically. The MSI is unsigned, so approve the
+  SmartScreen *"More info → Run anyway"* prompt. See [docs/installer.md](docs/installer.md).
+- **Portable ZIP:** download and extract the ZIP, then run `PBIPortWrapper.exe`
+  directly — no installation.
+
+Then:
+
 4. **Start Power BI Desktop** instances with your models
 5. **Instances appear automatically** in the data grid as they're detected (instant via FileSystemWatcher)
 6. **Configure each instance** - assign fixed port, enable auto-connect if desired
@@ -148,7 +156,9 @@ New-NetFirewallRule -DisplayName "PBI Port Wrapper" -Direction Inbound -LocalPor
 
 ### Install as Power BI Desktop External Tool
 
-You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-click launch directly from the ribbon:
+**If you used the MSI installer, this is already done** — PBI Port Wrapper appears
+on the **External Tools** ribbon after a Power BI Desktop restart. The steps below
+are only needed for the **portable ZIP**:
 
 1. Locate the `pbiportwrapper.pbitool.json` file in the installation folder
 2. Copy it to your Power BI Desktop external tools directory:
@@ -177,6 +187,8 @@ You can register PBI Port Wrapper as a Power BI Desktop External Tool for one-cl
 - ⚠️ **Conservative unsaved-changes check** - serving may ask for confirmation even
   right after a save (the Undo history can't prove a save happened)
 - ⚠️ **Network access setup** - manual Windows Firewall configuration required
+- ⚠️ **Unsigned installer** - the MSI and app are not code-signed, so Windows
+  SmartScreen/Defender warns on first run; click **More info → Run anyway**
 
 See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 
@@ -224,9 +236,15 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 - Single-instance guard (named mutex; second launch fronts the existing window)
 - Untitled instances blocked from configuration until the .pbix is saved
 
-### v0.6 (Planned)
+### v0.6.0 ✅ (Released)
+- Windows MSI installer: Start Menu entry and automatic Power BI External Tool
+  registration; silent/unattended install for enterprise deployment
+- Installer documentation ([docs/installer.md](docs/installer.md))
+- (portable ZIP still available; installer and app are unsigned)
+
+### v0.7 (Planned)
 - .odc file generation for one-click Excel connections
-- Tray-first workflow UI
+- Tray-first workflow UI (rewrite the workflow, not the framework)
 
 ### v1.0 (Vision)
 - Full XMLA protocol proxy with database name abstraction
@@ -234,7 +252,6 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 - Advanced connection pooling
 
 ### Future Considerations
-- Improvements to installation process
 - Auto-start with Windows option
 - Connection pooling and performance optimization
 - Configuration profiles for different scenarios

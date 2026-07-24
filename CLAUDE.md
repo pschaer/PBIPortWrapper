@@ -25,5 +25,7 @@ Studio, and Tabular Editor keep working across sessions.
 ## Conventions
 
 - MVP-style: MainForm wires services/presenters; presenters own behavior.
-- Config persisted via `ConfigurationManager` (config.json next to the app).
+- Config and logs persisted via `ConfigurationManager` under `%APPDATA%\PBIPortWrapper\`
+  (`config.json`, `log.txt`) — not next to the executable, so the app runs from
+  read-only locations like Program Files.
 - Private WIP goes to the Gitea remote; GitHub is the public origin for releases.
