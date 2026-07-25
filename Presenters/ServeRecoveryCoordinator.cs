@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using PBIPortWrapper.Models;
@@ -24,6 +25,10 @@ namespace PBIPortWrapper.Presenters
         private readonly Action<string> _log;
 
         private readonly HashSet<string> _prompted = new HashSet<string>();
+        // Recovery is a startup concern: only records that existed when the wrapper
+        // launched are crash leftovers. Records created later (this session's own
+        // serving, incl. auto-serve) must never be treated as recovery (#102).
+        private readonly HashSet<string> _initialRecordIds;
         private bool _checkRunning;
 
         public ServeRecoveryCoordinator(
@@ -38,11 +43,18 @@ namespace PBIPortWrapper.Presenters
             _configService = configService;
             _uiMarshal = uiMarshal;
             _log = log;
+
+            _initialRecordIds = new HashSet<string>(
+                configService.Current?.ServeRecoveryRecords?.Select(r => r.WorkspaceId)
+                ?? Enumerable.Empty<string>());
         }
 
         /// <summary>Call with every snapshot (any thread). Prompts arrive on the UI thread.</summary>
         public void OnSnapshot(IReadOnlyList<PowerBIInstance> instances)
         {
+            // Nothing was being served when we launched -> nothing to ever recover.
+            if (_initialRecordIds.Count == 0) return;
+
             var records = _configService.Current?.ServeRecoveryRecords;
             if (records == null || records.Count == 0) return;
             if (_checkRunning) return;
@@ -55,6 +67,9 @@ namespace PBIPortWrapper.Presenters
                     var candidates = await _sessions.CheckRecoveryAsync(instances, _idResolver);
                     foreach (var candidate in candidates)
                     {
+                        // Only recover records that were present at launch, never
+                        // this session's own serve records (#102).
+                        if (!_initialRecordIds.Contains(candidate.Record.WorkspaceId)) continue;
                         if (!_prompted.Add(candidate.Record.WorkspaceId)) continue;
                         var c = candidate;
                         _uiMarshal.BeginInvoke(new Action(() => Prompt(c)));

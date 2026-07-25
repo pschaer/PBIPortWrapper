@@ -1,4 +1,4 @@
-﻿namespace PBIPortWrapper
+namespace PBIPortWrapper
 {
     partial class MainForm
     {
@@ -31,6 +31,7 @@
             this.components = new System.ComponentModel.Container();
             System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
             this.panelTop = new System.Windows.Forms.Panel();
+            this.checkBoxStartWithWindows = new System.Windows.Forms.CheckBox();
             this.checkBoxMinimizeToTray = new System.Windows.Forms.CheckBox();
             this.buttonRefresh = new System.Windows.Forms.Button();
             this.labelTitle = new System.Windows.Forms.Label();
@@ -48,7 +49,7 @@
             this.colModelName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colPbiPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colFixedPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colAuto = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.colOnDetection = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.colNetwork = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.colStatus = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colAction = new System.Windows.Forms.DataGridViewButtonColumn();
@@ -62,6 +63,7 @@
             // 
             // panelTop
             // 
+            this.panelTop.Controls.Add(this.checkBoxStartWithWindows);
             this.panelTop.Controls.Add(this.checkBoxMinimizeToTray);
             this.panelTop.Controls.Add(this.buttonRefresh);
             this.panelTop.Controls.Add(this.labelTitle);
@@ -80,6 +82,17 @@
             this.buttonRefresh.TabIndex = 1;
             this.buttonRefresh.Text = "Refresh";
             this.buttonRefresh.UseVisualStyleBackColor = true;
+            // 
+            // checkBoxStartWithWindows
+            // 
+            this.checkBoxStartWithWindows.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.checkBoxStartWithWindows.AutoSize = true;
+            this.checkBoxStartWithWindows.Location = new System.Drawing.Point(540, 24);
+            this.checkBoxStartWithWindows.Name = "checkBoxStartWithWindows";
+            this.checkBoxStartWithWindows.Size = new System.Drawing.Size(130, 19);
+            this.checkBoxStartWithWindows.TabIndex = 3;
+            this.checkBoxStartWithWindows.Text = "Start with Windows";
+            this.checkBoxStartWithWindows.UseVisualStyleBackColor = true;
             // 
             // checkBoxMinimizeToTray
             // 
@@ -158,7 +171,7 @@
             this.colModelName,
             this.colPbiPort,
             this.colFixedPort,
-            this.colAuto,
+            this.colOnDetection,
             this.colNetwork,
             this.colStatus,
             this.colAction});
@@ -229,11 +242,11 @@
             // 
             this.colFixedPort.HeaderText = "Fixed Port";
             this.colFixedPort.Name = "colFixedPort";
-            // 
-            // colAuto
-            // 
-            this.colAuto.HeaderText = "Auto";
-            this.colAuto.Name = "colAuto";
+            //
+            // colOnDetection
+            //
+            this.colOnDetection.HeaderText = "On detection";
+            this.colOnDetection.Name = "colOnDetection";
             // 
             // colNetwork
             // 
@@ -282,6 +295,7 @@
         private System.Windows.Forms.Panel panelFill;
         private System.Windows.Forms.DataGridView dataGridViewInstances;
         private System.Windows.Forms.Label labelTitle;
+        private System.Windows.Forms.CheckBox checkBoxStartWithWindows;
         private System.Windows.Forms.CheckBox checkBoxMinimizeToTray;
         private System.Windows.Forms.Button buttonRefresh;
         private System.Windows.Forms.TextBox textBoxLog;
@@ -295,7 +309,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colModelName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colPbiPort;
         private System.Windows.Forms.DataGridViewTextBoxColumn colFixedPort;
-        private System.Windows.Forms.DataGridViewCheckBoxColumn colAuto;
+        private System.Windows.Forms.DataGridViewComboBoxColumn colOnDetection;
         private System.Windows.Forms.DataGridViewCheckBoxColumn colNetwork;
         private System.Windows.Forms.DataGridViewTextBoxColumn colStatus;
         private System.Windows.Forms.DataGridViewButtonColumn colAction;

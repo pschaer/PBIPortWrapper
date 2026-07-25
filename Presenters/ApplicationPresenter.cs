@@ -54,7 +54,7 @@ namespace PBIPortWrapper.Presenters
             // Preflight (#59): UIA undo-heuristic probe; Clean lets serve start
             // silently, MaybeDirty/Unknown make the UI ask the user.
             ServeSessionService = new ServeSessionService(
-                RenameService, ProxyManager, ConfigService, new UiaDirtyStateProbe(), LoggerService);
+                RenameService, ProxyManager, ConfigService, new UiaDirtyStateProbe(LogToService), LoggerService);
         }
 
         private void InitializePresenters(DataGridView grid)
@@ -116,6 +116,11 @@ namespace PBIPortWrapper.Presenters
              LoggerService?.LogInfo("App", message);
         }
 
+        /// <summary>
+        /// Stops detection and all proxies. Served-database restoration is owned by
+        /// <see cref="ServeLifecycleCoordinator.OnAppExitAsync"/> and runs first, on
+        /// exit (#100); this only tears down the infrastructure.
+        /// </summary>
         public void StopAll()
         {
             Monitor?.Dispose();

@@ -13,12 +13,19 @@ Studio, and Tabular Editor keep working across sessions.
 
 ## Architecture direction (see docs/)
 
-- [docs/serving-workflow.md](docs/serving-workflow.md) — the v1.0 design: serve
-  profiles, serve-only sessions, DB rename at the source, experiments E1–E5.
+- **[docs/HANDOVER-2026-07-25-v0.7-release.md](docs/HANDOVER-2026-07-25-v0.7-release.md)
+  — read first if resuming.** All v0.7 features are merged; this is the checklist to
+  cut the **v0.7.0 release** (.odc/#86 deferred to v0.7.1).
+- [docs/HANDOVER-2026-07-24-serve-lifecycle.md](docs/HANDOVER-2026-07-24-serve-lifecycle.md)
+  — the serve-lifecycle consolidation that shaped v0.7 (historical context).
+
+- [docs/serving-workflow.md](docs/serving-workflow.md) — the serve-session design:
+  serve profiles, serve-only sessions, DB rename at the source, experiments E1–E5.
+- [docs/tray-workflow.md](docs/tray-workflow.md) — the v0.7 tray-first workflow
+  design ("local SSAS" persona, hosted models, Off/Forward/Serve, auto-host).
 - [docs/HANDOFF.md](docs/HANDOFF.md) — decisions log and research references.
-- Known debt: state currently lives in the DataGridView (cells/Tags/button labels).
-  Planned v0.4 fix: extract headless `PBIPortWrapper.Core`; UI becomes a thin
-  projection. Prefer moving logic toward Core over adding logic to presenters.
+- `PBIPortWrapper.Core` holds the headless state/logic (extracted in v0.4); the UI
+  is a thin projection. Prefer moving logic toward Core over adding it to presenters.
 - `Services/XmlaProxyService.cs` is dormant (wire-level MITM, shelved) — don't
   extend it; see HANDOFF.md before touching.
 

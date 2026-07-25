@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -27,27 +27,34 @@ namespace PBIPortWrapper
         private List<PowerBIInstance> _currentInstances = new List<PowerBIInstance>();
         private HashSet<int> _expandedPids = new HashSet<int>();
         private ViewEventCoordinator _eventCoordinator;
+        private TrayMenuManager _trayMenu;
+        private TrayToastService _toasts;
+        private ServeLifecycleCoordinator _lifecycle;
+        private bool _shuttingDown;
+        private bool _shutdownComplete;
+        private readonly bool _startSilent;
 
-        public MainForm()
+        public MainForm(bool startSilent = false)
         {
+            _startSilent = startSilent;
             InitializeComponent();
             ConfigureGridColumns();
             
-            // Set Icon
-            try 
-            { 
-                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "app_icon.png");
-                if (File.Exists(iconPath))
-                {
-                    using (var bmp = new Bitmap(iconPath))
-                    {
-                        var icon = Icon.FromHandle(bmp.GetHicon());
-                        this.Icon = icon;
-                        this.notifyIcon.Icon = icon;
-                    }
-                }
-            } 
-            catch { }
+            // App icon (optional); loader keeps this form under its size limit.
+            var appIcon = AppIconLoader.TryLoad();
+            if (appIcon != null)
+            {
+                this.Icon = appIcon;
+                this.notifyIcon.Icon = appIcon;
+            }
+
+            // #87: when started with --silent (auto-start at login), begin
+            // minimized so the form never flashes before hiding to the tray.
+            if (_startSilent)
+            {
+                WindowState = FormWindowState.Minimized;
+                ShowInTaskbar = false;
+            }
 
             InitializeApplication();
             InitializeEventHandlers();
@@ -130,26 +137,23 @@ namespace PBIPortWrapper
                 dataGridViewInstances.Columns.Add(colActive);
             }
 
-            // Serve / Stop Serving action (#59)
-            if (!dataGridViewInstances.Columns.Contains("colServe"))
-            {
-                var colServe = new DataGridViewButtonColumn();
-                colServe.Name = "colServe";
-                colServe.HeaderText = "Serve";
-                colServe.UseColumnTextForButtonValue = false;
-                dataGridViewInstances.Columns.Add(colServe);
-            }
+            // On-detection policy dropdown (#88): same choices, in the same order, as
+            // the tray "On detection" submenu, so grid and tray read identically.
+            var onDetectionCol = (DataGridViewComboBoxColumn)dataGridViewInstances.Columns["colOnDetection"];
+            onDetectionCol.Items.Clear();
+            foreach (var policy in OnDetectionPolicyLabel.Order)
+                onDetectionCol.Items.Add(OnDetectionPolicyLabel.For(policy));
+            onDetectionCol.FlatStyle = FlatStyle.Flat;
 
             dataGridViewInstances.Columns["colExpand"].DisplayIndex = 0;
             dataGridViewInstances.Columns["colModelName"].DisplayIndex = 1;
             dataGridViewInstances.Columns["colPbiPort"].DisplayIndex = 2;
             dataGridViewInstances.Columns["colFixedPort"].DisplayIndex = 3;
-            dataGridViewInstances.Columns["colAuto"].DisplayIndex = 4;
+            dataGridViewInstances.Columns["colOnDetection"].DisplayIndex = 4;
             dataGridViewInstances.Columns["colNetwork"].DisplayIndex = 5;
             dataGridViewInstances.Columns["colAction"].DisplayIndex = 6;
-            dataGridViewInstances.Columns["colServe"].DisplayIndex = 7;
-            dataGridViewInstances.Columns["colStatus"].DisplayIndex = 8;
-            dataGridViewInstances.Columns["colActive"].DisplayIndex = 9;
+            dataGridViewInstances.Columns["colStatus"].DisplayIndex = 7;
+            dataGridViewInstances.Columns["colActive"].DisplayIndex = 8;
 
             dataGridViewInstances.Columns["colModelName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             dataGridViewInstances.Columns["colModelName"].FillWeight = 2.4f;
@@ -157,15 +161,15 @@ namespace PBIPortWrapper
             dataGridViewInstances.Columns["colExpand"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
             dataGridViewInstances.Columns["colExpand"].Width = LogicalToDeviceUnits(30);
 
-            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colAuto", "colNetwork", "colStatus", "colAction", "colActive" })
+            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colNetwork", "colStatus", "colAction", "colActive" })
             {
                 dataGridViewInstances.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
                 dataGridViewInstances.Columns[colName].FillWeight = 1.0f;
             }
 
-            // "Stop Serving" needs a wider button than the 1.0f columns
-            dataGridViewInstances.Columns["colServe"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            dataGridViewInstances.Columns["colServe"].FillWeight = 1.3f;
+            // The policy labels ("Serve after grace period") are wide; give the dropdown room.
+            dataGridViewInstances.Columns["colOnDetection"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            dataGridViewInstances.Columns["colOnDetection"].FillWeight = 2.0f;
 
             foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colStatus", "colActive" })
             {
@@ -173,7 +177,7 @@ namespace PBIPortWrapper
                 dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
             }
 
-            foreach (var colName in new[] { "colAuto", "colNetwork", "colAction", "colServe" })
+            foreach (var colName in new[] { "colOnDetection", "colNetwork", "colAction" })
             {
                 dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
             }
@@ -191,6 +195,17 @@ namespace PBIPortWrapper
                 () => _currentInstances,
                 LogToService);
 
+            _trayMenu = new TrayMenuManager(
+                notifyIcon, contextMenuStripTray,
+                _appPresenter.ProxyManager, _appPresenter.ServeSessionService,
+                _proxyPresenter, serveHandler, _appPresenter.ConfigService,
+                ShowFromTray, () => this.Close());
+
+            _toasts = new TrayToastService(notifyIcon);
+            _lifecycle = new ServeLifecycleCoordinator(
+                _appPresenter.ServeSessionService, _appPresenter.ConfigService,
+                _toasts, ShowFromTray, LogToService);
+
             _eventCoordinator = new ViewEventCoordinator(
                 dataGridViewInstances,
                 contextMenuStripGrid,
@@ -200,14 +215,57 @@ namespace PBIPortWrapper
                 (port) => _appPresenter.ProxyManager.IsRunning(port),
                 RefreshInstances,
                 ToggleRowExpansion,
-                serveHandler
+                serveHandler,
+                _appPresenter.ConfigService.FindRule,
+                ws => _appPresenter.ServeSessionService.FindSession(ws) != null
             );
 
             // Wire up Domain Events from View
-            _eventCoordinator.ConfigRequested += (s, args) => 
+            _eventCoordinator.ConfigRequested += (s, args) =>
             {
                 _appPresenter.ConfigService.UpdateRule(args.ModelName, args.FixedPort, args.Auto, args.AllowNetwork);
             };
+
+            // Reflect config edits (e.g. a grid policy change) in the tray immediately.
+            // ConfigurationChanged can fire from a background serve, so marshal to the UI.
+            _appPresenter.ConfigService.ConfigurationChanged += (s, e) =>
+            {
+                if (IsDisposed || Disposing) return;
+                try { BeginInvoke(new Action(() => _trayMenu?.Rebuild(_currentInstances))); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+            };
+
+            // Grid On-detection dropdown / Network checkbox -> config (#88). Persist on
+            // the user's commit (the cell going dirty), NOT on CellValueChanged - so the
+            // display-only projection in RowStatusPainter never writes config. Commit
+            // immediately so the change registers on the first click, not the next one.
+            dataGridViewInstances.CurrentCellDirtyStateChanged += (s, e) =>
+            {
+                var cell = dataGridViewInstances.CurrentCell;
+                if (cell == null || !dataGridViewInstances.IsCurrentCellDirty) return;
+                string modelName = dataGridViewInstances.Rows[cell.RowIndex].Cells["colModelName"].Value?.ToString();
+                if (string.IsNullOrEmpty(modelName)) return;
+
+                if (cell is DataGridViewComboBoxCell && cell.OwningColumn?.Name == "colOnDetection")
+                {
+                    dataGridViewInstances.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                    if (OnDetectionPolicyLabel.TryParse(cell.Value?.ToString(), out var policy))
+                        _appPresenter.ConfigService.SetOnDetection(modelName, policy);
+                }
+                else if (cell is DataGridViewCheckBoxCell && cell.OwningColumn?.Name == "colNetwork")
+                {
+                    // A checkbox's committed Value still holds the OLD state here; the new
+                    // state is the pending edit. Read that, or the toggle reads backwards
+                    // and the projection snaps it back (couldn't de-select network).
+                    bool newValue = Convert.ToBoolean(cell.EditedFormattedValue);
+                    dataGridViewInstances.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                    _appPresenter.ConfigService.SetNetwork(modelName, newValue);
+                }
+            };
+
+            // Never let a stray combobox value mismatch surface as a modal error dialog.
+            dataGridViewInstances.DataError += (s, e) => e.ThrowException = false;
 
             _eventCoordinator.ActionRequested += async (s, args) =>
             {
@@ -237,29 +295,16 @@ namespace PBIPortWrapper
             };
             
             dataGridViewInstances.CellContentClick += _eventCoordinator.OnCellContentClick;
-            dataGridViewInstances.CellValueChanged += _eventCoordinator.OnCellValueChanged;
             dataGridViewInstances.CellEndEdit += _eventCoordinator.OnCellEndEdit;
             dataGridViewInstances.CellValidating += _eventCoordinator.OnCellValidating;
             dataGridViewInstances.CellEnter += _eventCoordinator.OnCellEnter;
             
             this.FormClosing += MainForm_FormClosing;
             this.Resize += MainForm_Resize;
-            // Snapshots arriving before the handle exists are dropped by BeginInvoke;
-            // request a fresh scan once the form is actually visible.
-            this.Shown += (s, e) => RefreshInstances();
-            
-            checkBoxMinimizeToTray.CheckedChanged += (s, e) => 
-            {
-                if (_appPresenter.ConfigService.Current != null)
-                {
-                    _appPresenter.ConfigService.SetMinimizeToTray(checkBoxMinimizeToTray.Checked);
-                }
-            };
-            
-            if (_appPresenter.ConfigService.Current != null)
-            {
-                checkBoxMinimizeToTray.Checked = _appPresenter.ConfigService.Current.MinimizeToTray;
-            }
+            this.Shown += MainForm_Shown;
+
+            // Settings checkboxes + auto-start reconcile (#87).
+            SettingsBinder.Bind(checkBoxMinimizeToTray, checkBoxStartWithWindows, _appPresenter.ConfigService);
         }
 
         private void InitializeContextMenu()
@@ -304,6 +349,8 @@ namespace PBIPortWrapper
                 _proxyPresenter.ProcessAutoConnect(_currentInstances, _appPresenter.ConfigService.Current);
                 _appPresenter.ServeSessionService.OnInstancesChanged(_currentInstances);
                 _appPresenter.ServeRecovery.OnSnapshot(_currentInstances);
+                _trayMenu?.Rebuild(_currentInstances);
+                _lifecycle?.OnSnapshot(_currentInstances);
             }
             catch (Exception ex)
             {
@@ -327,19 +374,45 @@ namespace PBIPortWrapper
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (_shutdownComplete) return;              // shutdown finished; let this close proceed
+            if (_shuttingDown) { e.Cancel = true; return; } // shutdown already in progress
+
+            bool serving = _appPresenter.ServeSessionService.ActiveSessions.Count > 0;
+
             if (_appPresenter.ProxyManager.HasRunningProxies())
             {
-                var result = MessageBox.Show(
-                    "There are active Power BI proxies running.\nClosing the application will stop them.\n\nAre you sure you want to exit?",
-                    "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                string message = serving
+                    ? "Models are being served. Exiting will restore their original database names and stop forwarding.\n\nExit now?"
+                    : "There are active Power BI proxies running.\nClosing the application will stop them.\n\nAre you sure you want to exit?";
 
-                if (result != DialogResult.Yes)
+                if (MessageBox.Show(message, "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 {
                     e.Cancel = true;
                     return;
                 }
             }
-            _appPresenter.StopAll();
+
+            // Restore served databases before exit (#100). Do it asynchronously: the
+            // teardown raises events whose handlers marshal back to the UI thread, so
+            // blocking here would deadlock. Cancel this close, hide the window, and
+            // close for real once shutdown finishes.
+            e.Cancel = true;
+            _shuttingDown = true;
+            Hide();
+            _ = ShutdownThenCloseAsync();
+        }
+
+        private async Task ShutdownThenCloseAsync()
+        {
+            // Restore served databases first (the coordinator owns exit now, #100),
+            // then stop detection and proxies. Each step is isolated so a restore
+            // failure still tears the proxies down.
+            try { await _lifecycle.OnAppExitAsync(); }
+            catch (Exception ex) { LogToService($"Exit restore error: {ex.Message}"); }
+            try { _appPresenter.StopAll(); }
+            catch (Exception ex) { LogToService($"Shutdown error: {ex.Message}"); }
+            _shutdownComplete = true;
+            Close();
         }
 
         private void MainForm_Resize(object sender, EventArgs e)
@@ -364,7 +437,8 @@ namespace PBIPortWrapper
         {
             Show();
             WindowState = FormWindowState.Normal;
-            notifyIcon.Visible = false;
+            // Tray-first: the icon stays visible whether or not the window is open.
+            Activate();
         }
 
         private void ToolStripMenuItemExit_Click(object sender, EventArgs e) => this.Close();
@@ -387,5 +461,11 @@ namespace PBIPortWrapper
             textBoxLog.AppendText($"{message}{Environment.NewLine}");
         }
 
+        // #87: on Shown, complete silent-start (hide to tray) and kick a refresh.
+        private void MainForm_Shown(object sender, EventArgs e)
+        {
+            if (_startSilent) { Hide(); notifyIcon.Visible = true; ShowInTaskbar = true; }
+            RefreshInstances();
+        }
     }
 }

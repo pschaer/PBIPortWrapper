@@ -44,6 +44,8 @@ namespace PBIPortWrapper.Presenters
                 return;
             }
 
+            ProjectPolicy(row);
+
             // #9: config rules match by file name, so an unsaved model would
             // orphan its rule on the first real save - block configuration and
             // say why instead of silently not persisting.
@@ -51,7 +53,6 @@ namespace PBIPortWrapper.Presenters
             {
                 _setRowStatus(row, "Unsaved", Color.Gray, "", true);
                 row.Cells["colStatus"].ToolTipText = "Save the .pbix in Power BI Desktop to configure this instance.";
-                row.Cells["colServe"].Value = "";
                 row.Cells["colActive"].Value = "";
                 return;
             }
@@ -60,10 +61,8 @@ namespace PBIPortWrapper.Presenters
             var session = workspaceId != null ? _sessionLookup(workspaceId) : null;
             if (session != null)
             {
-                // The serve session owns the proxy: plain forwarding controls stay
-                // blank until Stop Serving hands the row back.
-                _setRowStatus(row, "Serving", Color.MediumBlue, "", true);
-                row.Cells["colServe"].Value = "Stop Serving";
+                // Serving: the single Action menu offers Stop (restores the name).
+                _setRowStatus(row, "Serving", Color.MediumBlue, "Actions", true);
                 row.Cells["colActive"].Value = _proxyManager.GetActiveConnections(session.FixedPort);
                 return;
             }
@@ -91,27 +90,51 @@ namespace PBIPortWrapper.Presenters
 
             if (running)
             {
-                _setRowStatus(row, "Running", Color.Green, "Stop", true);
+                // Forwarding: the Action menu offers Serve and Stop.
+                _setRowStatus(row, "Running", Color.Green, "Actions", true);
                 row.Cells["colActive"].Value = _proxyManager.GetActiveConnections(port);
             }
             else
             {
-                _setRowStatus(row, "Ready", Color.Black, port > 0 ? "Start" : "Set Port", false);
+                // Off: the Action menu offers Forward and Serve (once a port is set).
+                _setRowStatus(row, "Ready", Color.Black, port > 0 ? "Actions" : "Set Port", false);
                 row.Cells["colActive"].Value = "";
             }
-
-            var rule = _ruleLookup(row.Cells["colModelName"].Value?.ToString());
-            bool canServe = rule != null
-                && AliasValidator.ValidateAlias(rule.StableAlias).IsValid
-                && rule.FixedPort >= 1024 && rule.FixedPort <= 65535;
-            row.Cells["colServe"].Value = canServe ? "Serve" : "";
         }
 
         public void PaintOffline(DataGridViewRow row)
         {
+            ProjectPolicy(row);
             _setRowStatus(row, "Offline", Color.Gray, "Remove", false);
-            row.Cells["colServe"].Value = "";
             row.Cells["colActive"].Value = "";
+        }
+
+        /// <summary>
+        /// Projects the row's config-editable cells that can also change from the tray -
+        /// the On-detection dropdown and the Network checkbox - from the rule, so a
+        /// change made on the tray (which raises ConfigurationChanged → a repaint, not a
+        /// full snapshot) shows up in the grid too (#88). Any externally-changeable cell
+        /// must be projected here, not only in the snapshot path (GridSyncHelper). This
+        /// is display-only: the user's own edits persist via CurrentCellDirtyStateChanged,
+        /// so writing here never loops back into config.
+        /// </summary>
+        private void ProjectPolicy(DataGridViewRow row)
+        {
+            var rule = _ruleLookup(row.Cells["colModelName"].Value?.ToString());
+            if (rule == null) return; // no profile yet: leave the defaults the grid set
+
+            var grid = row.DataGridView;
+            var policyCell = row.Cells["colOnDetection"];
+            // Skip the dropdown while it is open/being edited so a pick isn't clobbered.
+            if (!(grid != null && grid.IsCurrentCellInEditMode && grid.CurrentCell == policyCell))
+            {
+                string label = OnDetectionPolicyLabel.For(rule.OnDetection);
+                if (policyCell.Value?.ToString() != label) policyCell.Value = label;
+            }
+
+            var networkCell = row.Cells["colNetwork"];
+            if (!Equals(networkCell.Value, rule.AllowNetworkAccess))
+                networkCell.Value = rule.AllowNetworkAccess;
         }
     }
 }

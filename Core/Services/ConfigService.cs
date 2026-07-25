@@ -128,6 +128,50 @@ namespace PBIPortWrapper.Services
                 Save();
         }
 
+        /// <summary>
+        /// Sets a model's on-detection policy (#85b). Keeps the legacy AutoConnect
+        /// flag consistent so the forward path (AutoConnectService) and the serve
+        /// path (auto-serve) never fight over the same port: Forward implies
+        /// AutoConnect; serve and do-nothing policies clear it.
+        /// </summary>
+        public void SetOnDetection(string modelName, OnDetectionPolicy policy)
+        {
+            if (Current == null || string.IsNullOrEmpty(modelName)) return;
+            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
+
+            var rule = FindRule(modelName);
+            if (rule == null)
+            {
+                rule = new PortMappingRule { ModelNamePattern = modelName };
+                Current.PortMappings.Add(rule);
+            }
+
+            rule.OnDetection = policy;
+            rule.AutoConnect = policy == OnDetectionPolicy.Forward;
+            Save();
+        }
+
+        /// <summary>
+        /// Sets a model's LAN exposure (advanced; same-user only - E1). Takes effect
+        /// when the proxy next starts, so it is a config change, not a live rebind.
+        /// </summary>
+        public void SetNetwork(string modelName, bool allowNetwork)
+        {
+            if (Current == null || string.IsNullOrEmpty(modelName)) return;
+            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
+
+            var rule = FindRule(modelName);
+            if (rule == null)
+            {
+                rule = new PortMappingRule { ModelNamePattern = modelName };
+                Current.PortMappings.Add(rule);
+            }
+
+            if (rule.AllowNetworkAccess == allowNetwork) return;
+            rule.AllowNetworkAccess = allowNetwork;
+            Save();
+        }
+
         public void SetMinimizeToTray(bool enabled)
         {
             if (Current == null) return;
@@ -135,6 +179,36 @@ namespace PBIPortWrapper.Services
 
             Current.MinimizeToTray = enabled;
             Save();
+        }
+
+        /// <summary>
+        /// Toggles the auto-start-with-Windows setting (#87). Keeps the HKCU
+        /// Run registry key in sync so the wrapper launches at login.
+        /// </summary>
+        public void SetStartWithWindows(bool enabled)
+        {
+            if (Current == null) return;
+            if (Current.StartWithWindows == enabled) return;
+
+            Current.StartWithWindows = enabled;
+            if (enabled) StartupService.Register();
+            else StartupService.Unregister();
+            Save();
+        }
+
+        /// <summary>
+        /// Reconciles the registry Run key with the persisted config (#87).
+        /// Call once at startup to self-heal after an exe move or manual
+        /// registry edit.
+        /// </summary>
+        public void ReconcileStartup()
+        {
+            if (Current == null) return;
+
+            if (Current.StartWithWindows && !StartupService.IsRegistered())
+                StartupService.Register();
+            else if (!Current.StartWithWindows && StartupService.IsRegistered())
+                StartupService.Unregister();
         }
 
         private void OnConfigurationChanged()

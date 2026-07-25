@@ -14,6 +14,7 @@ namespace PBIPortWrapper.Presenters
         private readonly ValidationService _validationService;
         private readonly GridPresenter _gridPresenter;
         private readonly Func<List<PowerBIInstance>> _instancesProvider;
+        private readonly Func<string, PortMappingRule> _ruleLookup;
 
         public event EventHandler<RowActionEventArgs> ActionRequested;
         public event EventHandler<ConfigChangeEventArgs> ConfigRequested;
@@ -22,12 +23,14 @@ namespace PBIPortWrapper.Presenters
             DataGridView dataGridView,
             ValidationService validationService,
             GridPresenter gridPresenter,
-            Func<List<PowerBIInstance>> instancesProvider)
+            Func<List<PowerBIInstance>> instancesProvider,
+            Func<string, PortMappingRule> ruleLookup)
         {
             _dataGridView = dataGridView;
             _validationService = validationService;
             _gridPresenter = gridPresenter;
             _instancesProvider = instancesProvider;
+            _ruleLookup = ruleLookup;
         }
 
         public void HandleSetPort(DataGridViewRow row, int rowIndex)
@@ -42,7 +45,7 @@ namespace PBIPortWrapper.Presenters
             if (fixedPort > 0 && ValidatePort(fixedPort, rowIndex))
             {
                 FireConfigUpdate(row);
-                _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Actions", false);
             }
         }
 
@@ -154,7 +157,8 @@ namespace PBIPortWrapper.Presenters
         {
             string modelName = row.Cells["colModelName"].Value?.ToString();
             int fixedPort = ParsePort(row);
-            bool auto = Convert.ToBoolean(row.Cells["colAuto"].Value);
+            // AutoConnect is derived from OnDetection now (#88); preserve it here.
+            bool auto = _ruleLookup?.Invoke(modelName)?.AutoConnect ?? false;
             bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
             
             ConfigRequested?.Invoke(this, new ConfigChangeEventArgs 

@@ -2,6 +2,45 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.7.0] - 2026-07-25
+
+### Added - Tray-first workflow (#47)
+- **Off / Forward / Serve model** - a single per-model control replaces the old
+  Start/Serve split; Forward gives a stable port, Serve additionally renames the
+  database to its stable alias
+- **Auto-serve on detection** - a per-model **On-detection** policy (Do nothing /
+  Forward / Serve / Serve after grace period); "Serve after grace period" shows a
+  countdown toast with an *edit instead* escape before serving
+- **Tray as the primary surface** - per-model submenu with Off/Forward/Serve, the
+  On-detection policy, an **Allow network access** toggle, copy connection string,
+  and ready / new-model balloon toasts
+- **Auto-start with Windows (#87)** - opt-in; adds an `HKCU\...\Run` entry, launches
+  silent to the tray, and self-heals the Run key if the executable is moved
+
+### Changed - Grid <-> tray convergence (#88)
+- The grid is now a diagnostics/admin surface that projects the same state as the
+  tray: an **On-detection** dropdown and a **Network** toggle that sync with the
+  tray *both ways*
+- The separate Action and Serve columns became a single **Action** menu built from
+  the same available-actions the tray uses
+
+### Fixed
+- **Exit while serving now restores the database name (#100)** - a consolidated
+  serve lifecycle (one `ServeLifecycleMachine` + `ServeLifecycleCoordinator` owning
+  detection and exit) fixes the exit-while-serving DB-rename-back regression, a
+  grace-period re-serve loop, and a startup UI freeze (the UIA dirty-state probe
+  now runs off the UI thread)
+- **Model-name detection under an elevated engine (#94/#95)** - model names are now
+  resolved by Analysis Services port, so detection works even when the Power BI
+  Desktop engine runs elevated
+- **Language-independent unsaved-changes probe (#82)** - the UIA dirty-state probe
+  matches localized Undo button labels instead of the English word only
+
+### Notes
+- The installer and executable remain **not code-signed**; Windows SmartScreen /
+  Defender warns on first run (*More info -> Run anyway*) (#35).
+- `.odc` one-click Excel export (#86) is deferred to a follow-up release.
+
 ## [0.6.0] - 2026-07-24
 
 ### Added - Windows Installer

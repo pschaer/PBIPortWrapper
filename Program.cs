@@ -13,7 +13,7 @@ namespace PBIPortWrapper
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
             // #64: concurrent wrappers share config.json/log.txt without
             // coordination and compete for the same fixed ports - allow only one
@@ -27,13 +27,17 @@ namespace PBIPortWrapper
                 return;
             }
 
+            // #87: --silent makes the app start hidden in the tray (used by the
+            // auto-start registry key so the wrapper doesn't pop a window at login).
+            bool startSilent = args.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
+
             // Set up global exception handlers
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += Application_ThreadException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
             ApplicationConfiguration.Initialize();
-            Application.Run(new MainForm());
+            Application.Run(new MainForm(startSilent));
         }
 
         private static Mutex AcquireSingleInstanceMutex(out bool isFirstInstance)
