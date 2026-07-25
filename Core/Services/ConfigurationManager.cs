@@ -30,12 +30,13 @@ namespace PBIPortWrapper.Services
 
         public ProxyConfiguration LoadConfiguration()
         {
+            ProxyConfiguration config = null;
             try
             {
                 if (File.Exists(_configFilePath))
                 {
                     var json = File.ReadAllText(_configFilePath);
-                    return JsonConvert.DeserializeObject<ProxyConfiguration>(json);
+                    config = JsonConvert.DeserializeObject<ProxyConfiguration>(json);
                 }
             }
             catch (Exception ex)
@@ -43,7 +44,14 @@ namespace PBIPortWrapper.Services
                 System.Diagnostics.Debug.WriteLine($"Error loading configuration: {ex.Message}");
             }
 
-            return new ProxyConfiguration();
+            // DeserializeObject returns null for an empty/whitespace file.
+            config ??= new ProxyConfiguration();
+
+            // Idempotent schema upgrade (#84). Migrated values persist on the next
+            // save; if the config is never saved, the next load derives them again.
+            ConfigMigrator.Migrate(config);
+
+            return config;
         }
 
         public void SaveConfiguration(ProxyConfiguration config)

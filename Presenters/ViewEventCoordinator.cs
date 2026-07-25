@@ -18,6 +18,8 @@ namespace PBIPortWrapper.Presenters
         private readonly ServeActionHandler _serveHandler;
         private readonly Func<int, bool> _isRunningProvider;
         private readonly Func<List<PowerBIInstance>> _instancesProvider;
+        private readonly Func<string, PortMappingRule> _ruleLookup;
+        private readonly RowActionMenuBuilder _actionMenu;
 
         public event EventHandler<RowActionEventArgs> ActionRequested;
         public event EventHandler<ConfigChangeEventArgs> ConfigRequested;
@@ -33,7 +35,9 @@ namespace PBIPortWrapper.Presenters
             Func<int, bool> isRunningProvider,
             Action refreshCallback,
             Action<int> onToggleExpand,
-            ServeActionHandler serveHandler)
+            ServeActionHandler serveHandler,
+            Func<string, PortMappingRule> ruleLookup,
+            Func<string, bool> isServing)
         {
             _dataGridView = dataGridView;
             _validationService = validationService;
@@ -42,11 +46,13 @@ namespace PBIPortWrapper.Presenters
             _onToggleExpand = onToggleExpand;
             _instancesProvider = instancesProvider;
             _serveHandler = serveHandler;
-            
+            _ruleLookup = ruleLookup;
+
             ContextMenuHandler = new ViewContextMenuHandler(dataGridView);
             _actionHandler = new RowActionHandler(
-                dataGridView, validationService, gridPresenter, instancesProvider);
-            
+                dataGridView, validationService, gridPresenter, instancesProvider, ruleLookup);
+            _actionMenu = new RowActionMenuBuilder(_actionHandler, serveHandler, isRunningProvider, isServing);
+
             _actionHandler.ActionRequested += (s, e) => ActionRequested?.Invoke(s, e);
             _actionHandler.ConfigRequested += (s, e) => ConfigRequested?.Invoke(s, e);
         }
@@ -67,30 +73,15 @@ namespace PBIPortWrapper.Presenters
                 return;
             }
 
-            if (_dataGridView.Columns[e.ColumnIndex].Name == "colServe")
-            {
-                var row = _dataGridView.Rows[e.RowIndex];
-                switch (row.Cells["colServe"].Value?.ToString())
-                {
-                    case "Serve": _ = _serveHandler.HandleServeAsync(row); break;
-                    case "Stop Serving": _ = _serveHandler.HandleStopServingAsync(row); break;
-                }
-                return;
-            }
-
             if (_dataGridView.Columns[e.ColumnIndex].Name == "colAction")
             {
                 var row = _dataGridView.Rows[e.RowIndex];
-                string action = row.Cells["colAction"].Value?.ToString();
-
-                if (string.IsNullOrEmpty(action)) return;
-
-                switch (action)
+                switch (row.Cells["colAction"].Value?.ToString())
                 {
                     case "Set Port": _actionHandler.HandleSetPort(row, e.RowIndex); break;
-                    case "Start": _actionHandler.HandleStart(row, e.RowIndex); break;
-                    case "Stop": _actionHandler.HandleStop(row); break;
                     case "Remove": _actionHandler.HandleRemove(row); break;
+                    // Live, configured row: open the state's available actions (#88).
+                    case "Actions": _actionMenu.ShowFor(row, e.RowIndex, Cursor.Position); break;
                 }
             }
         }
@@ -123,29 +114,28 @@ namespace PBIPortWrapper.Presenters
                  int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int port) && port > 0)
              {
                  if (!_isRunningProvider(port))
-                     _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                     _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Actions", false);
              }
         }
         
-        public void OnCellValueChanged(object sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex < 0) return;
-            string colName = _dataGridView.Columns[e.ColumnIndex].Name;
-            if (colName == "colAuto" || colName == "colNetwork")
-                UpdateConfigFromRow(_dataGridView.Rows[e.RowIndex]);
-        }
-        
+        // colOnDetection and colNetwork are persisted from the user's commit
+        // (CurrentCellDirtyStateChanged in MainForm), not from CellValueChanged - so the
+        // display-only projection in RowStatusPainter never writes config (no feedback
+        // loop). Only the free-text port still flows through UpdateConfigFromRow (below).
+
         private void UpdateConfigFromRow(DataGridViewRow row)
         {
             string modelName = row.Cells["colModelName"].Value?.ToString();
             int fixedPort = 0;
             if (row.Cells["colFixedPort"].Value != null)
                  int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
-            
-            bool auto = Convert.ToBoolean(row.Cells["colAuto"].Value);
+
+            // AutoConnect is derived from the OnDetection policy now (#88); preserve the
+            // rule's current value so a port/network edit never clears it.
+            bool auto = _ruleLookup?.Invoke(modelName)?.AutoConnect ?? false;
             bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
-            
-            ConfigRequested?.Invoke(this, new ConfigChangeEventArgs 
+
+            ConfigRequested?.Invoke(this, new ConfigChangeEventArgs
             {
                 ModelName = modelName,
                 FixedPort = fixedPort,
@@ -172,7 +162,7 @@ namespace PBIPortWrapper.Presenters
                         suggestedPort++;
                     
                     row.Cells["colFixedPort"].Value = suggestedPort;
-                    _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Start", false);
+                    _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Actions", false);
                 }
             }
         }

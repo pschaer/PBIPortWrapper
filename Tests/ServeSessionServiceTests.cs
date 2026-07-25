@@ -229,6 +229,24 @@ namespace PBIPortWrapper.Core.Tests
             Assert.Equal(ServeEndReason.Stopped, ended?.Reason);
         }
 
+        [Fact] // no silent leak on exit (#100): a failed rename-back still ends the session and surfaces the failure
+        public async Task StopServing_RenameBackFails_StillEndsSessionAndSurfaces()
+        {
+            var instance = Instance(FreePort());
+            var profile = Profile(FreePort());
+            await _service.StartServingAsync(instance, profile);
+            // Fail the rename-back (alias -> original id), not the initial serve rename.
+            _engine.ShouldFail = newName => newName == instance.DatabaseName;
+
+            var result = await _service.StopServingAsync("ws-1");
+
+            // The session is torn down regardless, and the failure is reported (never thrown/swallowed).
+            Assert.Null(_service.FindSession("ws-1"));
+            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
+            Assert.Contains("simulated failure", result.Message);
+        }
+
         [Fact]
         public async Task DesktopClosed_CleansUpWithoutRename()
         {

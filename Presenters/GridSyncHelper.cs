@@ -95,13 +95,13 @@ namespace PBIPortWrapper.Presenters
             if (rule != null && !isActive)
             {
                 row.Cells["colFixedPort"].Value = rule.FixedPort;
-                row.Cells["colAuto"].Value = rule.AutoConnect;
+                row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(rule.OnDetection);
                 row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
             }
             else
             {
                 row.Cells["colFixedPort"].Value = null;
-                row.Cells["colAuto"].Value = false;
+                row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(OnDetectionPolicy.DoNothing);
                 row.Cells["colNetwork"].Value = false;
                 if (isActive) _logCallback($"Duplicate instance '{instance.FileName}'. Config skipped.");
             }
@@ -116,7 +116,7 @@ namespace PBIPortWrapper.Presenters
             {
                 if (offlineRow.Cells["colFixedPort"].Value != null)
                     row.Cells["colFixedPort"].Value = offlineRow.Cells["colFixedPort"].Value;
-                row.Cells["colAuto"].Value = offlineRow.Cells["colAuto"].Value;
+                row.Cells["colOnDetection"].Value = offlineRow.Cells["colOnDetection"].Value;
                 row.Cells["colNetwork"].Value = offlineRow.Cells["colNetwork"].Value;
                 
                 _dataGridView.Rows.Remove(offlineRow);
@@ -201,7 +201,7 @@ namespace PBIPortWrapper.Presenters
                 row.Cells["colModelName"].Value = rule.ModelNamePattern;
                 row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\n(Offline)";
                 row.Cells["colFixedPort"].Value = rule.FixedPort;
-                row.Cells["colAuto"].Value = rule.AutoConnect;
+                row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(rule.OnDetection);
                 row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
                 row.Cells["colPbiPort"].Value = "";
                 row.Cells["colExpand"].Value = "";

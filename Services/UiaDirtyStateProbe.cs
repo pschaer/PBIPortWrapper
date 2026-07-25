@@ -13,11 +13,25 @@ namespace PBIPortWrapper
     /// Quick-Access-Toolbar Undo button. Undo disabled means no edits since open
     /// (Clean); Undo enabled means there were edits, which may or may not have been
     /// saved since (MaybeDirty — the undo stack survives a save). Anything that
-    /// prevents reading the button (window not found, localized/renamed button,
-    /// UIA failure) answers Unknown so the UI falls back to asking the user.
+    /// prevents reading the button (window not found, unrecognised localized
+    /// button, UIA failure) answers Unknown so the UI falls back to asking the user.
+    /// The Undo button is matched language-independently via <see cref="UndoButtonMatcher"/> (#82).
     /// </summary>
     public class UiaDirtyStateProbe : IDirtyStateProbe
     {
+        private readonly Action<string> _log;
+        private string _loggedAutomationId;
+
+        /// <summary>
+        /// <paramref name="log"/> receives a one-time diagnostic naming the Undo
+        /// button's AutomationId when it is matched, so a running Desktop reveals it
+        /// for a future label-independent match (#82).
+        /// </summary>
+        public UiaDirtyStateProbe(Action<string> log = null)
+        {
+            _log = log;
+        }
+
         public DirtyState Probe(int processId)
         {
             try
@@ -35,8 +49,11 @@ namespace PBIPortWrapper
                 foreach (AutomationElement button in buttons)
                 {
                     string name = StripInvisibleChars(button.Current.Name);
-                    if (name.StartsWith("Undo", StringComparison.OrdinalIgnoreCase))
+                    if (UndoButtonMatcher.IsUndo(name))
+                    {
+                        LogAutomationId(button, name);
                         return button.Current.IsEnabled ? DirtyState.MaybeDirty : DirtyState.Clean;
+                    }
                 }
 
                 return DirtyState.Unknown;
@@ -45,6 +62,21 @@ namespace PBIPortWrapper
             {
                 return DirtyState.Unknown;
             }
+        }
+
+        /// <summary>
+        /// One-time diagnostic: record the matched Undo button's AutomationId so a
+        /// real Desktop reveals it (a stable id would beat label matching, #82).
+        /// </summary>
+        private void LogAutomationId(AutomationElement button, string name)
+        {
+            if (_log == null) return;
+            string id;
+            try { id = button.Current.AutomationId ?? string.Empty; }
+            catch { return; }
+            if (string.IsNullOrEmpty(id) || id == _loggedAutomationId) return;
+            _loggedAutomationId = id;
+            _log($"Undo button matched: AutomationId='{id}', Name='{name}'.");
         }
 
         /// <summary>

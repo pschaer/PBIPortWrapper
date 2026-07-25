@@ -242,9 +242,15 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 - Installer documentation ([docs/installer.md](docs/installer.md))
 - (portable ZIP still available; installer and app are unsigned)
 
-### v0.7 (Planned)
+### v0.7.0 ✅ (Released)
+- Tray-first workflow: single Off / Forward / Serve model per instance
+- Auto-serve on detection with a per-model On-detection policy (grace period + toasts)
+- Grid ↔ tray convergence (On-detection dropdown, Network toggle, single Action menu)
+- Auto-start with Windows (silent to tray)
+- Fixes: exit-while-serving DB restore, detection under an elevated engine
+
+### v0.7.1 (Planned)
 - .odc file generation for one-click Excel connections
-- Tray-first workflow UI (rewrite the workflow, not the framework)
 
 ### v1.0 (Vision)
 - Full XMLA protocol proxy with database name abstraction
@@ -252,7 +258,6 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 - Advanced connection pooling
 
 ### Future Considerations
-- Auto-start with Windows option
 - Connection pooling and performance optimization
 - Configuration profiles for different scenarios
 - Command-line interface for automation

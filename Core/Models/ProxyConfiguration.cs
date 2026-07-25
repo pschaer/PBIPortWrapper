@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 
 namespace PBIPortWrapper.Models
 {
@@ -7,7 +7,15 @@ namespace PBIPortWrapper.Models
     // members, so old config files containing them still load.
     public class ProxyConfiguration
     {
+        /// <summary>
+        /// Config schema version, for idempotent migrations (#84). Absent in
+        /// pre-v0.7 files, so they deserialize as 0 and get upgraded on load by
+        /// <see cref="Services.ConfigMigrator"/>.
+        /// </summary>
+        public int ConfigVersion { get; set; } = 0;
+
         public bool MinimizeToTray { get; set; } = false;
+        public bool StartWithWindows { get; set; } = false;
         public string LastSelectedInstance { get; set; }
         public List<PortMappingRule> PortMappings { get; set; } = new List<PortMappingRule>();
 

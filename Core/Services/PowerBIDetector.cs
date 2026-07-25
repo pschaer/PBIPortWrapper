@@ -57,7 +57,7 @@ namespace PBIPortWrapper.Services
                                 }
 
                                 string databaseName = GetDatabaseName(port);
-                                var (processId, parentProcessId, friendlyName) = GetProcessInfo(workspaceDir);
+                                var (processId, parentProcessId, friendlyName) = GetProcessInfo(port);
 
                                 var instance = new PowerBIInstance
                                 {
@@ -91,64 +91,60 @@ namespace PBIPortWrapper.Services
             }
         }
 
-        private (int processId, int parentProcessId, string friendlyName) GetProcessInfo(string workspaceDir)
+        /// <summary>
+        /// Resolves the engine PID, its Power BI Desktop parent PID, and the model
+        /// name for a workspace. Matches the workspace's AS <paramref name="port"/> to
+        /// the owning msmdsrv process; this works even when the engine runs elevated
+        /// (e.g. Desktop launched from an elevated installer), where its command line
+        /// is unreadable to a non-elevated wrapper and path matching would fail (#94).
+        /// </summary>
+        private (int processId, int parentProcessId, string friendlyName) GetProcessInfo(int port)
         {
             try
             {
-                // Normalize path for comparison
-                string normalizedWorkspacePath = Path.GetFullPath(workspaceDir).TrimEnd(Path.DirectorySeparatorChar);
+                int msmdsrvPid = TcpPortOwner.GetOwningProcessId(port);
+                if (msmdsrvPid <= 0) return (0, 0, null);
 
-                // Query WMI for msmdsrv.exe processes
-                string query = "SELECT ProcessId, ParentProcessId, CommandLine FROM Win32_Process WHERE Name = 'msmdsrv.exe'";
-                using (var searcher = new ManagementObjectSearcher(query))
-                using (var collection = searcher.Get())
+                int parentProcessId = GetParentProcessId(msmdsrvPid);
+                string friendlyName = null;
+
+                if (parentProcessId > 0)
                 {
-                    foreach (var process in collection)
+                    try
                     {
-                        string commandLine = process["CommandLine"]?.ToString();
-                        if (string.IsNullOrEmpty(commandLine)) continue;
-
-                        // Check if this msmdsrv instance is running from our workspace
-                        if (commandLine.IndexOf(normalizedWorkspacePath, StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            int processId = Convert.ToInt32(process["ProcessId"]);
-                            int parentProcessId = Convert.ToInt32(process["ParentProcessId"]);
-                            string friendlyName = null;
-
-                            try
-                            {
-                                var parentProcess = Process.GetProcessById(parentProcessId);
-                                if (parentProcess.ProcessName.Equals("PBIDesktop", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    string title = parentProcess.MainWindowTitle;
-                                    // Title format is usually "Filename - Power BI Desktop"
-                                    int separatorIndex = title.LastIndexOf(" - Power BI Desktop");
-                                    if (separatorIndex > 0)
-                                    {
-                                        friendlyName = title.Substring(0, separatorIndex);
-                                    }
-                                    else
-                                    {
-                                        friendlyName = title;
-                                    }
-                                }
-                            }
-                            catch
-                            {
-                                // Parent process might have exited or we can't access it
-                            }
-
-                            return (processId, parentProcessId, friendlyName);
-                        }
+                        var parent = Process.GetProcessById(parentProcessId);
+                        if (parent.ProcessName.Equals("PBIDesktop", StringComparison.OrdinalIgnoreCase))
+                            friendlyName = WindowTitleParser.ModelName(parent.MainWindowTitle);
+                    }
+                    catch
+                    {
+                        // Parent may have exited or be inaccessible; fall back to a generic name.
                     }
                 }
+
+                return (msmdsrvPid, parentProcessId, friendlyName);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error getting process info: {ex.Message}");
+                return (0, 0, null);
             }
+        }
 
-            return (0, 0, null);
+        private static int GetParentProcessId(int processId)
+        {
+            try
+            {
+                using var searcher = new ManagementObjectSearcher(
+                    $"SELECT ParentProcessId FROM Win32_Process WHERE ProcessId = {processId}");
+                foreach (var mo in searcher.Get())
+                    return Convert.ToInt32(mo["ParentProcessId"]);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting parent of {processId}: {ex.Message}");
+            }
+            return 0;
         }
 
         private string ReadPortFile(string portFile)
@@ -224,13 +220,14 @@ namespace PBIPortWrapper.Services
         {
             var dirName = Path.GetFileName(workspaceDir);
 
-            // Extract just the first part of the workspace ID for display
-            if (dirName.Length > 20)
-            {
-                return $"Workspace-{dirName.Substring(0, 8)}";
-            }
+            // Workspace dirs are named "AnalysisServicesWorkspace<id>", so the first
+            // characters are identical for every model - use the distinguishing id
+            // suffix instead, or the name shrinks to a useless "Workspace-Analysis".
+            const string prefix = "AnalysisServicesWorkspace";
+            if (dirName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) && dirName.Length > prefix.Length)
+                return $"Workspace-{dirName.Substring(prefix.Length)}";
 
-            return $"Workspace-{dirName}";
+            return $"Workspace-{(dirName.Length > 8 ? dirName.Substring(0, 8) : dirName)}";
         }
 
         public bool IsWorkspacePathValid()

@@ -46,6 +46,35 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
+        public void SetNetwork_CreatesRuleTogglesAndPreservesOtherFields()
+        {
+            _service.UpdateRule("Sample01", 55555, autoConnect: true, allowNetwork: false);
+
+            _service.SetNetwork("Sample01", true);
+
+            var rule = Assert.Single(ReloadFromDisk().Current.PortMappings);
+            Assert.True(rule.AllowNetworkAccess);
+            Assert.Equal(55555, rule.FixedPort);
+            Assert.True(rule.AutoConnect);
+        }
+
+        [Fact]
+        public void SetNetwork_RefusesUntitled()
+        {
+            _service.SetNetwork("Untitled", true);
+            Assert.Empty(_service.Current.PortMappings);
+        }
+
+        [Fact] // #87: the auto-start flag round-trips through config (registry side is StartupService's)
+        public void StartWithWindows_PersistsAcrossReload()
+        {
+            _service.Current.StartWithWindows = true;
+            _service.Save();
+
+            Assert.True(ReloadFromDisk().Current.StartWithWindows);
+        }
+
+        [Fact]
         public void SetStableAlias_OnExistingRule_KeepsOtherFields()
         {
             _service.UpdateRule("Sample01", 55555, autoConnect: true, allowNetwork: true);

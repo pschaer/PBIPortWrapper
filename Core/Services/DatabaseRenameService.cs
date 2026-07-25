@@ -39,9 +39,9 @@ namespace PBIPortWrapper.Services
                 }
                 finally
                 {
-                    if (server.Connected)
-                        server.Disconnect();
-                    server.Dispose();
+                    // Cleanup must never mask the result (see RenameDatabaseAsync).
+                    try { if (server.Connected) server.Disconnect(); } catch { }
+                    try { server.Dispose(); } catch { }
                 }
             });
         }
@@ -112,9 +112,11 @@ namespace PBIPortWrapper.Services
                 }
                 finally
                 {
-                    if (server.Connected)
-                        server.Disconnect();
-                    server.Dispose();
+                    // A throw here (seen during shutdown teardown) would mask the
+                    // rename result and propagate as an uncaught exception — the
+                    // silent exit-restore failure in #100. Never let cleanup escape.
+                    try { if (server.Connected) server.Disconnect(); } catch { }
+                    try { server.Dispose(); } catch { }
                 }
             });
         }

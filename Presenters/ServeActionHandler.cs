@@ -44,6 +44,17 @@ namespace PBIPortWrapper.Presenters
                 return;
             }
 
+            await HandleServeAsync(instance);
+        }
+
+        /// <summary>
+        /// Instance-based serve flow, shared by the grid row action and the tray
+        /// menu (#85). Same confirmation + dirty-state fallback in one place.
+        /// </summary>
+        public async Task HandleServeAsync(PowerBIInstance instance)
+        {
+            if (instance == null) return;
+
             var profile = _configService.FindRule(instance.FileName);
             if (profile == null || string.IsNullOrEmpty(profile.StableAlias))
             {
@@ -87,9 +98,12 @@ namespace PBIPortWrapper.Presenters
                 MessageBox.Show(result.Message, "Serve failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
-        public async Task HandleStopServingAsync(DataGridViewRow row)
+        public Task HandleStopServingAsync(DataGridViewRow row) =>
+            HandleStopServingAsync(row.Tag as string);
+
+        /// <summary>Stop serving by workspace id; shared by the grid and tray (#85).</summary>
+        public async Task HandleStopServingAsync(string workspaceId)
         {
-            var workspaceId = row.Tag as string;
             if (string.IsNullOrEmpty(workspaceId)) return;
 
             var result = await _sessions.StopServingAsync(workspaceId);
