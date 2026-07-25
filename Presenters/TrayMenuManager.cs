@@ -94,10 +94,44 @@ namespace PBIPortWrapper.Presenters
             item.DropDownItems.Add(new ToolStripSeparator());
             item.DropDownItems.Add(BuildNetworkItem(instance, profile));
             item.DropDownItems.Add(new ToolStripSeparator());
+
+            // .odc hand-off (#86): only meaningful with a stable catalog (alias) to
+            // point Excel at; forwarding without a rename has no stable catalog name.
+            if (!string.IsNullOrWhiteSpace(profile.StableAlias))
+                item.DropDownItems.Add(new ToolStripMenuItem("Save .odc…", null,
+                    (s, e) => SaveOdc(instance, profile)));
+
             item.DropDownItems.Add(new ToolStripMenuItem("Copy connection string", null,
                 (s, e) => CopyConnectionString(profile)));
 
             return item;
+        }
+
+        private void SaveOdc(PowerBIInstance instance, PortMappingRule profile)
+        {
+            string catalog = profile.StableAlias;
+            using (var dialog = new SaveFileDialog
+            {
+                Title = "Save Office Data Connection",
+                Filter = "Office Data Connection (*.odc)|*.odc",
+                DefaultExt = "odc",
+                AddExtension = true,
+                FileName = OdcFileBuilder.SuggestFileName(catalog)
+            })
+            {
+                if (dialog.ShowDialog() != DialogResult.OK) return;
+                try
+                {
+                    string content = OdcFileBuilder.Build(
+                        instance.FileName, ConnectionEndpoint.Host(profile), profile.FixedPort, catalog);
+                    System.IO.File.WriteAllText(dialog.FileName, content, new System.Text.UTF8Encoding(false));
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Could not save the .odc file:\n{ex.Message}",
+                        "Save .odc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
         }
 
         private ToolStripMenuItem BuildNetworkItem(PowerBIInstance instance, PortMappingRule profile)

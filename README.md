@@ -249,8 +249,9 @@ See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for details.
 - Auto-start with Windows (silent to tray)
 - Fixes: exit-while-serving DB restore, detection under an elevated engine
 
-### v0.7.1 (Planned)
-- .odc file generation for one-click Excel connections
+### v0.7.1 ✅ (Released)
+- Save .odc… for one-click Excel PivotTable connections
+- Fix: window title now tracks the release version
 
 ### v1.0 (Vision)
 - Full XMLA protocol proxy with database name abstraction
