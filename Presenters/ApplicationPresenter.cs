@@ -102,10 +102,22 @@ namespace PBIPortWrapper.Presenters
             };
         }
 
+        /// <summary>
+        /// Window/log title with the version derived from the assembly, so a release
+        /// version bump updates it automatically (no hardcoded "vX.Y" to go stale — #113).
+        /// </summary>
+        public static string AppTitle
+        {
+            get
+            {
+                var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                return $"PBI Port Wrapper v{version?.Major}.{version?.Minor}";
+            }
+        }
+
         public void LogAppInfo()
         {
-            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            LogToService($"PBI Port Wrapper v{version?.Major}.{version?.Minor}");
+            LogToService(AppTitle);
             LogToService("Features: Multi-instance support, Auto-reconnect, Offline config management");
             LogToService($"Log file: {LoggerService?.GetLogFilePath()}"); 
             LogToService("");

@@ -105,7 +105,7 @@ namespace PBIPortWrapper
 
         private void ConfigureGridColumns()
         {
-            this.Text = "PBI Port Wrapper v0.5";
+            this.Text = Presenters.ApplicationPresenter.AppTitle;
 
             // The designer's RowTemplate.Height is 96-DPI pixels, but fonts scale
             // with monitor DPI (PerMonitorV2) - rows must follow the font or the

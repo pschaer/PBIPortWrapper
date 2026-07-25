@@ -2,6 +2,19 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.7.1] - 2026-07-25
+
+### Added
+- **Save .odc… for one-click Excel hand-off** - a served model can be saved as an
+  Office Data Connection (`.odc`) file carrying the stable connection string and
+  catalog; double-clicking it opens an Excel PivotTable with no connection string
+  typed or seen. Available from the tray when a stable alias is set; *Copy
+  connection string* stays for DAX Studio / advanced users (#86)
+
+### Fixed
+- **Window title showed "v0.5"** - the main window title was hardcoded and never
+  bumped; it now derives from the assembly version, so it tracks the release (#113)
+
 ## [0.7.0] - 2026-07-25
 
 ### Added - Tray-first workflow (#47)

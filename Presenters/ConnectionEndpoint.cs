@@ -17,9 +17,16 @@ namespace PBIPortWrapper.Presenters
         public static string For(PortMappingRule rule)
         {
             if (rule == null || rule.FixedPort <= 0) return string.Empty;
-            string host = rule.AllowNetworkAccess ? ResolveLocalAddress() : "localhost";
-            return ConnectionStringBuilder.DataSource(host, rule.FixedPort);
+            return ConnectionStringBuilder.DataSource(Host(rule), rule.FixedPort);
         }
+
+        /// <summary>
+        /// The host external tools should target for this model: <c>localhost</c>,
+        /// or the LAN address when network access is allowed. Shared so the copy
+        /// string, ready toasts and the saved .odc all point at the same host.
+        /// </summary>
+        public static string Host(PortMappingRule rule) =>
+            rule != null && rule.AllowNetworkAccess ? ResolveLocalAddress() : "localhost";
 
         /// <summary>Best-effort local IPv4 for LAN connection strings.</summary>
         private static string ResolveLocalAddress()
