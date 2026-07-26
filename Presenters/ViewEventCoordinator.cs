@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -11,15 +11,12 @@ namespace PBIPortWrapper.Presenters
     public class ViewEventCoordinator
     {
         private readonly DataGridView _dataGridView;
-        private readonly ValidationService _validationService;
         private readonly GridPresenter _gridPresenter;
         private readonly Action<int> _onToggleExpand;
         private readonly RowActionHandler _actionHandler;
         private readonly ServeActionHandler _serveHandler;
-        private readonly Func<int, bool> _isRunningProvider;
         private readonly Func<List<PowerBIInstance>> _instancesProvider;
-        private readonly Func<string, PortMappingRule> _ruleLookup;
-        private readonly RowActionMenuBuilder _actionMenu;
+        private readonly Func<string, ModelRule> _ruleLookup;
 
         public event EventHandler<RowActionEventArgs> ActionRequested;
         public event EventHandler<ConfigChangeEventArgs> ConfigRequested;
@@ -29,20 +26,16 @@ namespace PBIPortWrapper.Presenters
         public ViewEventCoordinator(
             DataGridView dataGridView,
             ContextMenuStrip contextMenu,
-            ValidationService validationService,
             GridPresenter gridPresenter,
             Func<List<PowerBIInstance>> instancesProvider,
-            Func<int, bool> isRunningProvider,
             Action refreshCallback,
             Action<int> onToggleExpand,
             ServeActionHandler serveHandler,
-            Func<string, PortMappingRule> ruleLookup,
+            Func<string, ModelRule> ruleLookup,
             Func<string, bool> isServing)
         {
             _dataGridView = dataGridView;
-            _validationService = validationService;
             _gridPresenter = gridPresenter;
-            _isRunningProvider = isRunningProvider;
             _onToggleExpand = onToggleExpand;
             _instancesProvider = instancesProvider;
             _serveHandler = serveHandler;
@@ -50,8 +43,7 @@ namespace PBIPortWrapper.Presenters
 
             ContextMenuHandler = new ViewContextMenuHandler(dataGridView);
             _actionHandler = new RowActionHandler(
-                dataGridView, validationService, gridPresenter, instancesProvider, ruleLookup);
-            _actionMenu = new RowActionMenuBuilder(_actionHandler, serveHandler, isRunningProvider, isServing);
+                dataGridView, gridPresenter, instancesProvider, ruleLookup);
 
             _actionHandler.ActionRequested += (s, e) => ActionRequested?.Invoke(s, e);
             _actionHandler.ConfigRequested += (s, e) => ConfigRequested?.Invoke(s, e);
@@ -76,95 +68,35 @@ namespace PBIPortWrapper.Presenters
             if (_dataGridView.Columns[e.ColumnIndex].Name == "colAction")
             {
                 var row = _dataGridView.Rows[e.RowIndex];
-                switch (row.Cells["colAction"].Value?.ToString())
-                {
-                    case "Set Port": _actionHandler.HandleSetPort(row, e.RowIndex); break;
-                    case "Remove": _actionHandler.HandleRemove(row); break;
-                    // Live, configured row: open the state's available actions (#88).
-                    case "Actions": _actionMenu.ShowFor(row, e.RowIndex, Cursor.Position); break;
-                }
+                // The cell says what pressing it does, so it just does that (#126).
+                // With one action available per state, a menu to reveal a single item
+                // was pure friction.
+                string action = row.Cells["colAction"].Value?.ToString();
+                if (action == HostActionLabel.For(HostAction.Serve)) _ = _serveHandler.HandleServeAsync(row);
+                else if (action == HostActionLabel.For(HostAction.Stop)) _ = _serveHandler.HandleStopServingAsync(row);
+                else if (action == "Remove") _actionHandler.HandleRemove(row);
+                else if (action == "Set name") FocusAliasCell(row);
             }
         }
 
-        public void OnCellValidating(object sender, DataGridViewCellValidatingEventArgs e)
+        // Every config cell persists from the user's own commit — the On-detection
+        // dropdown on CurrentCellDirtyStateChanged, the alias on CellEndEdit, both
+        // wired in MainForm. RowStatusPainter's projection is display-only, so nothing
+        // it writes can loop back into config.
+
+        /// <summary>Puts the caret in the alias cell, which is what "Set name" means.</summary>
+        private void FocusAliasCell(DataGridViewRow row)
         {
-            if (_dataGridView.Columns[e.ColumnIndex].Name == "colFixedPort")
-            {
-                var val = _validationService.ValidatePortAssignment(e.FormattedValue.ToString(), _dataGridView, e.RowIndex);
-                if (!val.IsValid)
-                {
-                    e.Cancel = true;
-                    _dataGridView.Rows[e.RowIndex].ErrorText = val.ErrorMessage;
-                    if (val.ErrorMessage.Contains("already assigned"))
-                        MessageBox.Show(val.ErrorMessage, "Port Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-                else
-                {
-                    _dataGridView.Rows[e.RowIndex].ErrorText = string.Empty;
-                }
-            }
-        }
+            var cell = row.Cells["colAlias"];
+            if (cell.ReadOnly) return;
 
-        public void OnCellEndEdit(object sender, DataGridViewCellEventArgs e)
-        {
-             var row = _dataGridView.Rows[e.RowIndex];
-             UpdateConfigFromRow(row);
-             
-             if (row.Cells["colFixedPort"].Value != null && 
-                 int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int port) && port > 0)
-             {
-                 if (!_isRunningProvider(port))
-                     _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Actions", false);
-             }
-        }
-        
-        // colOnDetection and colNetwork are persisted from the user's commit
-        // (CurrentCellDirtyStateChanged in MainForm), not from CellValueChanged - so the
-        // display-only projection in RowStatusPainter never writes config (no feedback
-        // loop). Only the free-text port still flows through UpdateConfigFromRow (below).
-
-        private void UpdateConfigFromRow(DataGridViewRow row)
-        {
-            string modelName = row.Cells["colModelName"].Value?.ToString();
-            int fixedPort = 0;
-            if (row.Cells["colFixedPort"].Value != null)
-                 int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
-
-            // AutoConnect is derived from the OnDetection policy now (#88); preserve the
-            // rule's current value so a port/network edit never clears it.
-            bool auto = _ruleLookup?.Invoke(modelName)?.AutoConnect ?? false;
-            bool network = Convert.ToBoolean(row.Cells["colNetwork"].Value);
-
-            ConfigRequested?.Invoke(this, new ConfigChangeEventArgs
-            {
-                ModelName = modelName,
-                FixedPort = fixedPort,
-                Auto = auto,
-                AllowNetwork = network,
-                Row = row
-            });
+            _dataGridView.CurrentCell = cell;
+            _dataGridView.BeginEdit(selectAll: true);
         }
 
         public void OnCellEnter(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0) return;
-
-            if (_dataGridView.Columns[e.ColumnIndex].Name == "colFixedPort")
-            {
-                var row = _dataGridView.Rows[e.RowIndex];
-                // Read-only cell means the row is not configurable right now
-                // (running, serving, or Untitled - #9); don't auto-suggest into it.
-                if (row.Cells["colFixedPort"].ReadOnly) return;
-                if (row.Cells["colFixedPort"].Value == null || string.IsNullOrEmpty(row.Cells["colFixedPort"].Value.ToString()))
-                {
-                    int suggestedPort = 55555;
-                    while (_validationService.IsPortDuplicate(suggestedPort, _dataGridView, e.RowIndex))
-                        suggestedPort++;
-                    
-                    row.Cells["colFixedPort"].Value = suggestedPort;
-                    _gridPresenter.SetRowStatus(row, "Ready", Color.Black, "Actions", false);
-                }
-            }
         }
 
         public void OnMouseDown(object sender, MouseEventArgs e)

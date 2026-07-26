@@ -1,14 +1,21 @@
-using System;
+﻿using System;
 using Newtonsoft.Json;
 
 namespace PBIPortWrapper.Models
 {
-    public class PortMappingRule
+    public class ModelRule
     {
         public string ModelNamePattern { get; set; }
-        public int FixedPort { get; set; }
+
+        /// <summary>
+        /// Legacy (pre-v1.0): "forward on detect". Forwarding is retired (#126) and
+        /// nothing reads this any more; it survives only so a pre-v1 config file can
+        /// still be migrated. <c>FixedPort</c> and <c>AllowNetworkAccess</c> went with
+        /// it — a model is addressed by alias on the XMLA endpoint, whose port and
+        /// reachability are one global setting. Both are simply absent now; old config
+        /// files still load, because unknown JSON properties are ignored.
+        /// </summary>
         public bool AutoConnect { get; set; }
-        public bool AllowNetworkAccess { get; set; }
 
         /// <summary>
         /// Stable Initial Catalog the database is renamed to while serving.
@@ -33,16 +40,14 @@ namespace PBIPortWrapper.Models
         /// </summary>
         public OnDetectionPolicy OnDetection { get; set; } = OnDetectionPolicy.DoNothing;
 
-        public PortMappingRule()
+        public ModelRule()
         {
         }
 
-        public PortMappingRule(string modelNamePattern, int fixedPort, bool autoConnect, bool allowNetworkAccess)
+        public ModelRule(string modelNamePattern, string stableAlias = null)
         {
             ModelNamePattern = modelNamePattern;
-            FixedPort = fixedPort;
-            AutoConnect = autoConnect;
-            AllowNetworkAccess = allowNetworkAccess;
+            StableAlias = stableAlias;
         }
     }
 }

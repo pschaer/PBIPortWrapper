@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -31,6 +31,7 @@ namespace PBIPortWrapper.Presenters
 
         private readonly Dictionary<string, WinFormsTimer> _graceTimers = new();
         private readonly HashSet<string> _newModelNotified = new();
+        private readonly HashSet<string> _notServableNotified = new();
         private readonly HashSet<string> _inFlight = new();
         private readonly HashSet<string> _suppressed = new();
         private readonly object _suppressLock = new();
@@ -83,7 +84,7 @@ namespace PBIPortWrapper.Presenters
             Execute(transition, instance, rule);
         }
 
-        private LifecycleContext BuildContext(string ws, PortMappingRule rule)
+        private LifecycleContext BuildContext(string ws, ModelRule rule)
         {
             bool hasRecovery = _config?.Current?.ServeRecoveryRecords?.Any(r => r.WorkspaceId == ws) == true;
             return new LifecycleContext(
@@ -103,7 +104,7 @@ namespace PBIPortWrapper.Presenters
         }
 
         /// <summary>Runs the non-exit commands of a transition (detection / grace).</summary>
-        private void Execute(ServeTransition transition, PowerBIInstance instance, PortMappingRule rule)
+        private void Execute(ServeTransition transition, PowerBIInstance instance, ModelRule rule)
         {
             foreach (var command in transition.Commands)
             {
@@ -125,11 +126,16 @@ namespace PBIPortWrapper.Presenters
                         if (_newModelNotified.Add(instance.WorkspaceId))
                             _toasts.NewModel(instance.FileName, _showDashboard);
                         break;
+                    case ServeCommand.NotifyNotServable: // #114
+                        if (_notServableNotified.Add(instance.WorkspaceId))
+                            _toasts.ServeFailed(instance.FileName,
+                                "Set an alias for this model before it can be served.");
+                        break;
                 }
             }
         }
 
-        private void StartGrace(PowerBIInstance instance, PortMappingRule rule)
+        private void StartGrace(PowerBIInstance instance, ModelRule rule)
         {
             string ws = instance.WorkspaceId;
             var timer = new WinFormsTimer { Interval = GraceSeconds * 1000 };
@@ -160,7 +166,7 @@ namespace PBIPortWrapper.Presenters
             }
         }
 
-        private async Task ServeAsync(PowerBIInstance instance, PortMappingRule rule)
+        private async Task ServeAsync(PowerBIInstance instance, ModelRule rule)
         {
             string ws = instance.WorkspaceId;
             if (!_inFlight.Add(ws)) return;
@@ -176,7 +182,7 @@ namespace PBIPortWrapper.Presenters
                     () => _sessions.StartServingAsync(instance, rule, userConfirmedSaved: true));
                 _log?.Invoke(result.Message);
                 if (result.Success)
-                    _toasts.ServingReady(instance.FileName, ConnectionEndpoint.For(rule));
+                    _toasts.ServingReady(instance.FileName, rule.StableAlias);
                 else
                     _toasts.ServeFailed(instance.FileName, result.Message);
             }
@@ -226,21 +232,14 @@ namespace PBIPortWrapper.Presenters
             foreach (var ws in _graceTimers.Keys.Where(k => !live.Contains(k)).ToList())
                 StopGrace(ws);
             _newModelNotified.RemoveWhere(ws => !live.Contains(ws));
+            _notServableNotified.RemoveWhere(ws => !live.Contains(ws));
             _inFlight.RemoveWhere(ws => !live.Contains(ws));
             // A gone instance is a fresh session next time: drop its suppression.
             lock (_suppressLock) _suppressed.RemoveWhere(ws => !live.Contains(ws));
         }
 
-        private void Suppress(string ws)
-        {
-            if (string.IsNullOrEmpty(ws)) return;
-            lock (_suppressLock) _suppressed.Add(ws);
-        }
-
-        private bool IsSuppressed(string ws)
-        {
-            lock (_suppressLock) return _suppressed.Contains(ws);
-        }
+        private void Suppress(string ws) { if (!string.IsNullOrEmpty(ws)) lock (_suppressLock) _suppressed.Add(ws); }
+        private bool IsSuppressed(string ws) { lock (_suppressLock) return _suppressed.Contains(ws); }
 
         private static bool IsUntitled(PowerBIInstance instance) =>
             string.IsNullOrEmpty(instance.FileName)

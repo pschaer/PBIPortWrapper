@@ -2,22 +2,18 @@ namespace PBIPortWrapper.Models
 {
     /// <summary>
     /// What the app should do with a model when its Desktop instance is detected
-    /// (v0.7 tray-first workflow, #84 — see docs/tray-workflow.md).
+    /// (#84 — see docs/tray-workflow.md).
     ///
-    /// Supersedes the legacy per-rule booleans: <c>AutoConnect</c> (forward on
-    /// detect) maps to <see cref="Forward"/>, and the never-consumed
-    /// <c>AutoServe</c> maps to <see cref="ServeImmediately"/>. The mapping is
-    /// applied once by the config migration (#84). Integer values are stable —
-    /// they are what persists in config.json — so members may be renamed but not
-    /// renumbered.
+    /// Integer values are stable — they are what persists in config.json — so members
+    /// may be renamed but not renumbered. Value <c>1</c> is deliberately absent: it
+    /// was <c>Forward</c>, retired with forwarding in v1.0 (#126). A config still
+    /// carrying it is migrated to <see cref="DoNothing"/>; see
+    /// <see cref="Services.ConfigMigrator"/>.
     /// </summary>
     public enum OnDetectionPolicy
     {
         /// <summary>Ignore the model until the user acts on it. Target state: Off.</summary>
         DoNothing = 0,
-
-        /// <summary>Forward the stable port only; Desktop stays editable. Target state: Forward.</summary>
-        Forward = 1,
 
         /// <summary>
         /// Serve after a short grace period with an "Edit instead" escape hatch.
@@ -25,7 +21,7 @@ namespace PBIPortWrapper.Models
         /// </summary>
         ServeAfterGrace = 2,
 
-        /// <summary>Serve at once (rename + forward). Target state: Serve.</summary>
+        /// <summary>Serve at once. Target state: Serve.</summary>
         ServeImmediately = 3
     }
 }

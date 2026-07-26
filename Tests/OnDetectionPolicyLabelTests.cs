@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using PBIPortWrapper.Models;
 using Xunit;
 
@@ -12,8 +12,7 @@ namespace PBIPortWrapper.Core.Tests
     {
         [Theory]
         [InlineData(OnDetectionPolicy.DoNothing, "Do nothing")]
-        [InlineData(OnDetectionPolicy.Forward, "Forward")]
-        [InlineData(OnDetectionPolicy.ServeImmediately, "Serve")]
+                [InlineData(OnDetectionPolicy.ServeImmediately, "Serve")]
         [InlineData(OnDetectionPolicy.ServeAfterGrace, "Serve after grace period")]
         public void For_matches_expected_label(OnDetectionPolicy policy, string label) =>
             Assert.Equal(label, OnDetectionPolicyLabel.For(policy));

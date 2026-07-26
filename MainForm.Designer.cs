@@ -1,4 +1,4 @@
-namespace PBIPortWrapper
+﻿namespace PBIPortWrapper
 {
     partial class MainForm
     {
@@ -45,12 +45,10 @@ namespace PBIPortWrapper
             this.toolStripMenuItemShow = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItemExit = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuStripGrid = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.toolStripMenuItemCopy = new System.Windows.Forms.ToolStripMenuItem();
             this.colModelName = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colPbiPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colFixedPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colAlias = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colOnDetection = new System.Windows.Forms.DataGridViewComboBoxColumn();
-            this.colNetwork = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.colStatus = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colAction = new System.Windows.Forms.DataGridViewButtonColumn();
             this.panelTop.SuspendLayout();
@@ -170,9 +168,8 @@ namespace PBIPortWrapper
             this.dataGridViewInstances.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.colModelName,
             this.colPbiPort,
-            this.colFixedPort,
+            this.colAlias,
             this.colOnDetection,
-            this.colNetwork,
             this.colStatus,
             this.colAction});
             this.dataGridViewInstances.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -214,17 +211,9 @@ namespace PBIPortWrapper
             // 
             // contextMenuStripGrid
             // 
-            this.contextMenuStripGrid.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.toolStripMenuItemCopy});
+            this.contextMenuStripGrid.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { });
             this.contextMenuStripGrid.Name = "contextMenuStripGrid";
             this.contextMenuStripGrid.Size = new System.Drawing.Size(200, 26);
-            // 
-            // toolStripMenuItemCopy
-            // 
-            this.toolStripMenuItemCopy.Name = "toolStripMenuItemCopy";
-            this.toolStripMenuItemCopy.Size = new System.Drawing.Size(199, 22);
-            this.toolStripMenuItemCopy.Text = "Copy Connection String";
-            this.toolStripMenuItemCopy.Click += new System.EventHandler(this.ToolStripMenuItemCopy_Click);
             // 
             // colModelName
             // 
@@ -238,20 +227,16 @@ namespace PBIPortWrapper
             this.colPbiPort.Name = "colPbiPort";
             this.colPbiPort.ReadOnly = true;
             // 
-            // colFixedPort
+            // colAlias
             // 
-            this.colFixedPort.HeaderText = "Fixed Port";
-            this.colFixedPort.Name = "colFixedPort";
+            this.colAlias.HeaderText = "Alias";
+            this.colAlias.Name = "colAlias";
+            this.colAlias.ToolTipText = "The stable database name this model is served as, and the name clients address it by.";
             //
             // colOnDetection
             //
             this.colOnDetection.HeaderText = "On detection";
             this.colOnDetection.Name = "colOnDetection";
-            // 
-            // colNetwork
-            // 
-            this.colNetwork.HeaderText = "Network";
-            this.colNetwork.Name = "colNetwork";
             // 
             // colStatus
             // 
@@ -305,12 +290,10 @@ namespace PBIPortWrapper
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemShow;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemExit;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripGrid;
-        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItemCopy;
         private System.Windows.Forms.DataGridViewTextBoxColumn colModelName;
         private System.Windows.Forms.DataGridViewTextBoxColumn colPbiPort;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFixedPort;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colAlias;
         private System.Windows.Forms.DataGridViewComboBoxColumn colOnDetection;
-        private System.Windows.Forms.DataGridViewCheckBoxColumn colNetwork;
         private System.Windows.Forms.DataGridViewTextBoxColumn colStatus;
         private System.Windows.Forms.DataGridViewButtonColumn colAction;
     }

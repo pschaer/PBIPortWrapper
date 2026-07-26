@@ -12,13 +12,23 @@ namespace PBIPortWrapper.Services
         Error = 3
     }
 
+    /// <summary>
+    /// A logger whose verbosity can be raised while running. Separate from
+    /// <see cref="ILogger"/> so that a diagnostic switch is testable without writing
+    /// to the real log file, and so that not every logger has to be adjustable.
+    /// </summary>
+    public interface ILogLevelSwitch
+    {
+        LogLevel MinimumLevel { get; set; }
+    }
+
     public interface ILogger
     {
         void Log(LogLevel level, string category, string message, Exception exception = null);
         string GetLogFilePath();
     }
 
-    public class LoggerService : ILogger
+    public class LoggerService : ILogger, ILogLevelSwitch
     {
         private readonly string _logDirectory;
         private readonly string _logFilePath;
@@ -28,6 +38,17 @@ namespace PBIPortWrapper.Services
         private LogLevel _minimumLevel = LogLevel.Info;
 
         public event EventHandler<LogEventArgs> OnLogMessage;
+
+        /// <summary>
+        /// The level below which nothing is written or shown. Settable so a diagnostic
+        /// switch can turn Debug detail on for a session without a restart; the
+        /// dashboard mirrors this log, so raising the detail is a visible act.
+        /// </summary>
+        public LogLevel MinimumLevel
+        {
+            get => _minimumLevel;
+            set => _minimumLevel = value;
+        }
 
         public LoggerService(LogLevel minimumLevel = LogLevel.Info)
         {

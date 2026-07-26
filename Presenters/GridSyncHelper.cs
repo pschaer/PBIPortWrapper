@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -11,7 +11,6 @@ namespace PBIPortWrapper.Presenters
     public class GridSyncHelper
     {
         private readonly DataGridView _dataGridView;
-        private readonly ProxyManager _proxyManager;
         private readonly ProxyConfiguration _config;
         private readonly Action<string> _logCallback;
         private readonly RowStatusPainter _painter;
@@ -19,13 +18,11 @@ namespace PBIPortWrapper.Presenters
 
         public GridSyncHelper(
             DataGridView dataGridView,
-            ProxyManager proxyManager,
             ProxyConfiguration config,
             Action<string> logCallback,
             RowStatusPainter painter)
         {
             _dataGridView = dataGridView;
-            _proxyManager = proxyManager;
             _config = config;
             _logCallback = logCallback;
             _painter = painter;
@@ -87,22 +84,20 @@ namespace PBIPortWrapper.Presenters
 
         private void ApplyInitialConfig(DataGridViewRow row, PowerBIInstance instance, ProxyConfiguration config)
         {
-            var rule = config.PortMappings.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
+            var rule = config.Models.FirstOrDefault(r => r.ModelNamePattern == instance.FileName);
             bool isActive = rule != null && _dataGridView.Rows.Cast<DataGridViewRow>()
                 .Any(r => r != row && !IsDetail(r) && r.Cells["colModelName"].Value?.ToString() == instance.FileName && 
-                          r.Cells["colFixedPort"].Value?.ToString().Length > 0);
+                          r.Cells["colAlias"].Value?.ToString().Length > 0);
 
             if (rule != null && !isActive)
             {
-                row.Cells["colFixedPort"].Value = rule.FixedPort;
+                row.Cells["colAlias"].Value = rule.StableAlias;
                 row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(rule.OnDetection);
-                row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
             }
             else
             {
-                row.Cells["colFixedPort"].Value = null;
+                row.Cells["colAlias"].Value = null;
                 row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(OnDetectionPolicy.DoNothing);
-                row.Cells["colNetwork"].Value = false;
                 if (isActive) _logCallback($"Duplicate instance '{instance.FileName}'. Config skipped.");
             }
         }
@@ -114,10 +109,9 @@ namespace PBIPortWrapper.Presenters
 
             if (offlineRow != null)
             {
-                if (offlineRow.Cells["colFixedPort"].Value != null)
-                    row.Cells["colFixedPort"].Value = offlineRow.Cells["colFixedPort"].Value;
+                if (offlineRow.Cells["colAlias"].Value != null)
+                    row.Cells["colAlias"].Value = offlineRow.Cells["colAlias"].Value;
                 row.Cells["colOnDetection"].Value = offlineRow.Cells["colOnDetection"].Value;
-                row.Cells["colNetwork"].Value = offlineRow.Cells["colNetwork"].Value;
                 
                 _dataGridView.Rows.Remove(offlineRow);
                 _logCallback($"Merged offline config for '{instance.FileName}'.");
@@ -165,17 +159,8 @@ namespace PBIPortWrapper.Presenters
                 if (processedRows.Contains(row)) continue;
                 if (IsDetail(row)) { toRemove.Add(row); continue; }
 
-                int port = 0;
-                if (row.Cells["colFixedPort"].Value != null) int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out port);
-
-                if (port > 0 && _proxyManager.IsRunning(port))
-                {
-                    _proxyManager.StopProxy(port);
-                    _logCallback($"Auto-stopped proxy {port} (PBI closed)");
-                }
-
                 string name = row.Cells["colModelName"].Value?.ToString();
-                if (config.PortMappings.Any(r => r.ModelNamePattern == name))
+                if (config.Models.Any(r => r.ModelNamePattern == name))
                 {
                     row.Tag = null;
                     row.Cells["colPbiPort"].Value = "";
@@ -193,16 +178,15 @@ namespace PBIPortWrapper.Presenters
 
         private void EnsureConfigRows(ProxyConfiguration config)
         {
-            foreach (var rule in config.PortMappings)
+            foreach (var rule in config.Models)
             {
                 if (_dataGridView.Rows.Cast<DataGridViewRow>().Any(r => !IsDetail(r) && r.Cells["colModelName"].Value?.ToString() == rule.ModelNamePattern)) continue;
 
                 var row = _dataGridView.Rows[_dataGridView.Rows.Add()];
                 row.Cells["colModelName"].Value = rule.ModelNamePattern;
                 row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\n(Offline)";
-                row.Cells["colFixedPort"].Value = rule.FixedPort;
+                row.Cells["colAlias"].Value = rule.StableAlias;
                 row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(rule.OnDetection);
-                row.Cells["colNetwork"].Value = rule.AllowNetworkAccess;
                 row.Cells["colPbiPort"].Value = "";
                 row.Cells["colExpand"].Value = "";
                 _painter.PaintOffline(row);

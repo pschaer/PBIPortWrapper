@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -20,21 +20,18 @@ namespace PBIPortWrapper.Presenters
 
         public GridPresenter(
             DataGridView dataGridView,
-            ProxyManager proxyManager,
-            ValidationService validationService,
             ProxyConfiguration config,
             Func<string, ServeSession> sessionLookup,
-            Func<string, PortMappingRule> ruleLookup,
+            Func<string, ModelRule> ruleLookup,
             Action<string> logCallback)
         {
             _dataGridView = dataGridView;
 
             _painter = new RowStatusPainter(
-                proxyManager, sessionLookup, ruleLookup, SetRowStatus, logCallback);
+                sessionLookup, ruleLookup, SetRowStatus, logCallback);
 
             _syncHelper = new GridSyncHelper(
                 dataGridView,
-                proxyManager,
                 config,
                 logCallback,
                 _painter);
@@ -55,30 +52,7 @@ namespace PBIPortWrapper.Presenters
             row.Cells["colStatus"].Value = status;
             row.Cells["colStatus"].Style.ForeColor = color;
             row.Cells["colAction"].Value = actionText;
-            row.Cells["colFixedPort"].ReadOnly = isReadOnly;
-            row.Cells["colNetwork"].ReadOnly = isReadOnly;
-        }
-
-        /// <summary>
-        /// Event path (proxy started/stopped, serve session started/ended):
-        /// repaints the rows on the given fixed port from current state.
-        /// </summary>
-        public void UpdateGridStatus(int fixedPort)
-        {
-            if (_dataGridView.InvokeRequired)
-            {
-                _dataGridView.Invoke(new Action(() => UpdateGridStatus(fixedPort)));
-                return;
-            }
-
-            foreach (DataGridViewRow row in _dataGridView.Rows)
-            {
-                if (row.Cells["colFixedPort"].Value != null &&
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int fp) && fp == fixedPort)
-                {
-                    _painter.Paint(row);
-                }
-            }
+            row.Cells["colAlias"].ReadOnly = isReadOnly;
         }
 
         /// <summary>
@@ -96,24 +70,6 @@ namespace PBIPortWrapper.Presenters
                         _painter.Paint(row);
                 }
             }));
-        }
-
-        public void UpdateActiveConnections(int fixedPort, int count)
-        {
-            if (_dataGridView.InvokeRequired)
-            {
-                _dataGridView.Invoke(new Action(() => UpdateActiveConnections(fixedPort, count)));
-                return;
-            }
-
-            foreach (DataGridViewRow row in _dataGridView.Rows)
-            {
-                if (row.Cells["colFixedPort"].Value != null &&
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out int fp) && fp == fixedPort)
-                {
-                    row.Cells["colActive"].Value = count;
-                }
-            }
         }
     }
 }

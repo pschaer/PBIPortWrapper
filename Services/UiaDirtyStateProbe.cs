@@ -23,9 +23,9 @@ namespace PBIPortWrapper
         private string _loggedAutomationId;
 
         /// <summary>
-        /// <paramref name="log"/> receives a one-time diagnostic naming the Undo
-        /// button's AutomationId when it is matched, so a running Desktop reveals it
-        /// for a future label-independent match (#82).
+        /// <paramref name="log"/> is written to only when the Undo button had to be
+        /// matched by its localized label because its AutomationId was not the expected
+        /// one — i.e. when Desktop has changed it (#82).
         /// </summary>
         public UiaDirtyStateProbe(Action<string> log = null)
         {
@@ -49,9 +49,12 @@ namespace PBIPortWrapper
                 foreach (AutomationElement button in buttons)
                 {
                     string name = StripInvisibleChars(button.Current.Name);
-                    if (UndoButtonMatcher.IsUndo(name))
+                    string automationId;
+                    try { automationId = button.Current.AutomationId; }
+                    catch { automationId = null; }
+                    if (UndoButtonMatcher.Matches(automationId, name))
                     {
-                        LogAutomationId(button, name);
+                        LogUnexpectedAutomationId(button, name);
                         return button.Current.IsEnabled ? DirtyState.MaybeDirty : DirtyState.Clean;
                     }
                 }
@@ -65,18 +68,22 @@ namespace PBIPortWrapper
         }
 
         /// <summary>
-        /// One-time diagnostic: record the matched Undo button's AutomationId so a
-        /// real Desktop reveals it (a stable id would beat label matching, #82).
+        /// Version-drift detector. The AutomationId is the primary match and has been
+        /// <c>undo</c> on every Desktop seen so far, so a match on that id is the
+        /// ordinary case and says nothing worth writing down. Only the exception is
+        /// logged: a Desktop that matched via the localized label instead, which means
+        /// the id moved and the primary match has quietly degraded to the fallback.
         /// </summary>
-        private void LogAutomationId(AutomationElement button, string name)
+        private void LogUnexpectedAutomationId(AutomationElement button, string name)
         {
             if (_log == null) return;
             string id;
             try { id = button.Current.AutomationId ?? string.Empty; }
             catch { return; }
-            if (string.IsNullOrEmpty(id) || id == _loggedAutomationId) return;
+            if (UndoButtonMatcher.IsUndoAutomationId(id) || id == _loggedAutomationId) return;
             _loggedAutomationId = id;
-            _log($"Undo button matched: AutomationId='{id}', Name='{name}'.");
+            _log($"Undo button matched by label '{name}', not by AutomationId " +
+                 $"(found '{id}'). Power BI Desktop may have changed it.");
         }
 
         /// <summary>

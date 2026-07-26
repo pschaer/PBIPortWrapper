@@ -79,7 +79,6 @@ namespace PBIPortWrapper.Services
     public class ServeSessionService
     {
         private readonly IRenameEngine _renameEngine;
-        private readonly ProxyManager _proxyManager;
         private readonly ConfigService _configService;
         private readonly IDirtyStateProbe _dirtyProbe;
         private readonly ILogger _logger;
@@ -92,13 +91,11 @@ namespace PBIPortWrapper.Services
 
         public ServeSessionService(
             IRenameEngine renameEngine,
-            ProxyManager proxyManager,
             ConfigService configService,
             IDirtyStateProbe dirtyProbe = null,
             ILogger logger = null)
         {
             _renameEngine = renameEngine;
-            _proxyManager = proxyManager;
             _configService = configService;
             _dirtyProbe = dirtyProbe ?? new NullDirtyStateProbe();
             _logger = logger;
@@ -116,7 +113,7 @@ namespace PBIPortWrapper.Services
         }
 
         public async Task<ServeResult> StartServingAsync(
-            PowerBIInstance instance, PortMappingRule profile, bool userConfirmedSaved = false)
+            PowerBIInstance instance, ModelRule profile, bool userConfirmedSaved = false)
         {
             if (instance == null || profile == null)
                 return ServeResult.Fail("Instance and profile are required.");
@@ -128,16 +125,9 @@ namespace PBIPortWrapper.Services
             var (aliasValid, aliasError) = AliasValidator.ValidateAlias(profile.StableAlias);
             if (!aliasValid)
                 return ServeResult.Fail($"Profile has no usable alias: {aliasError}");
-            if (profile.FixedPort < 1024 || profile.FixedPort > 65535)
-                return ServeResult.Fail($"Invalid profile port {profile.FixedPort}.");
 
             if (FindSession(instance.WorkspaceId) != null)
                 return ServeResult.Fail($"Already serving {instance.FileName}.");
-
-            var existingTarget = _proxyManager.GetTargetPort(profile.FixedPort);
-            if (existingTarget.HasValue && existingTarget.Value != instance.Port)
-                return ServeResult.Fail(
-                    $"Port {profile.FixedPort} already forwards to another instance (target {existingTarget.Value}).");
 
             // Preflight (E3: Desktop errors while renamed; never serve unsaved work).
             var dirty = _dirtyProbe.Probe(instance.ProcessId);
@@ -164,23 +154,6 @@ namespace PBIPortWrapper.Services
                 return ServeResult.Fail($"Rename failed: {rename.Message}");
             }
 
-            try
-            {
-                await _proxyManager.StartProxyAsync(
-                    profile.FixedPort, instance.Port, profile.AllowNetworkAccess, instance.FileName);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError("ServeSession", $"Proxy start failed for {instance.FileName}; rolling back rename", ex);
-                var rollback = await _renameEngine.RenameAsync(instance.Port, profile.StableAlias, instance.DatabaseName);
-                if (!rollback.Success)
-                    _logger?.LogError("ServeSession",
-                        $"Rollback rename failed for {instance.FileName}: {rollback.Message}. Recovery record retained.");
-                else
-                    _configService.RemoveServeRecoveryRecord(instance.WorkspaceId);
-                return ServeResult.Fail($"Could not start proxy on port {profile.FixedPort}: {ex.Message}");
-            }
-
             var session = new ServeSession
             {
                 WorkspaceId = instance.WorkspaceId,
@@ -188,16 +161,15 @@ namespace PBIPortWrapper.Services
                 Alias = profile.StableAlias,
                 DatabaseId = record.DatabaseId,
                 InstancePort = instance.Port,
-                FixedPort = profile.FixedPort,
                 Pid = instance.ProcessId,
                 StartedUtc = record.StartedUtc
             };
             lock (_sessionLock) _sessions[session.WorkspaceId] = session;
 
             _logger?.LogInfo("ServeSession",
-                $"Serving {session.FileName} as '{session.Alias}' on port {session.FixedPort} (db {session.DatabaseId})");
+                $"Serving {session.FileName} as '{session.Alias}' (db {session.DatabaseId}, engine port {session.InstancePort})");
             SessionStarted?.Invoke(this, new ServeSessionEventArgs(session));
-            return ServeResult.Ok($"Serving '{session.Alias}' on port {session.FixedPort}.");
+            return ServeResult.Ok($"Serving '{session.Alias}'.");
         }
 
         /// <summary>
@@ -321,24 +293,17 @@ namespace PBIPortWrapper.Services
         }
 
         /// <summary>
-        /// Recovery choice "resume serving": re-register the session and restart the
-        /// proxy. If the crash interrupted the serve before the rename took effect,
-        /// the rename to the alias is completed first. The recovery record is kept —
-        /// it is once again the crash anchor of a live session.
+        /// Recovery choice "resume serving": re-register the session. If the crash
+        /// interrupted the serve before the rename took effect, the rename to the alias
+        /// is completed first. The recovery record is kept — it is once again the crash
+        /// anchor of a live session.
         /// </summary>
-        public async Task<ServeResult> ResumeServingAsync(ServeRecoveryCandidate candidate, PortMappingRule profile)
+        public async Task<ServeResult> ResumeServingAsync(ServeRecoveryCandidate candidate, ModelRule profile)
         {
             if (candidate == null || profile == null)
                 return ServeResult.Fail("Candidate and profile are required.");
-            if (profile.FixedPort < 1024 || profile.FixedPort > 65535)
-                return ServeResult.Fail($"Invalid profile port {profile.FixedPort}.");
             if (FindSession(candidate.Record.WorkspaceId) != null)
                 return ServeResult.Fail($"Already serving {candidate.Instance.FileName}.");
-
-            var existingTarget = _proxyManager.GetTargetPort(profile.FixedPort);
-            if (existingTarget.HasValue && existingTarget.Value != candidate.Instance.Port)
-                return ServeResult.Fail(
-                    $"Port {profile.FixedPort} already forwards to another instance (target {existingTarget.Value}).");
 
             if (!string.Equals(candidate.Instance.DatabaseName, candidate.Record.Alias, StringComparison.OrdinalIgnoreCase))
             {
@@ -348,16 +313,6 @@ namespace PBIPortWrapper.Services
                     return ServeResult.Fail($"Could not re-apply alias: {rename.Message}");
             }
 
-            try
-            {
-                await _proxyManager.StartProxyAsync(
-                    profile.FixedPort, candidate.Instance.Port, profile.AllowNetworkAccess, candidate.Instance.FileName);
-            }
-            catch (Exception ex)
-            {
-                return ServeResult.Fail($"Could not start proxy on port {profile.FixedPort}: {ex.Message}");
-            }
-
             var session = new ServeSession
             {
                 WorkspaceId = candidate.Record.WorkspaceId,
@@ -365,7 +320,6 @@ namespace PBIPortWrapper.Services
                 Alias = candidate.Record.Alias,
                 DatabaseId = candidate.Record.DatabaseId,
                 InstancePort = candidate.Instance.Port,
-                FixedPort = profile.FixedPort,
                 Pid = candidate.Instance.ProcessId,
                 StartedUtc = candidate.Record.StartedUtc
             };
@@ -383,14 +337,13 @@ namespace PBIPortWrapper.Services
             });
 
             _logger?.LogInfo("ServeSession",
-                $"Recovery: resumed serving {session.FileName} as '{session.Alias}' on port {session.FixedPort}");
+                $"Recovery: resumed serving {session.FileName} as '{session.Alias}'");
             SessionStarted?.Invoke(this, new ServeSessionEventArgs(session));
-            return ServeResult.Ok($"Resumed serving '{session.Alias}' on port {session.FixedPort}.");
+            return ServeResult.Ok($"Resumed serving '{session.Alias}'.");
         }
 
         private void EndSession(ServeSession session, ServeEndReason reason)
         {
-            _proxyManager.StopProxy(session.FixedPort);
             _configService.RemoveServeRecoveryRecord(session.WorkspaceId);
             lock (_sessionLock) _sessions.Remove(session.WorkspaceId);
             SessionEnded?.Invoke(this, new ServeSessionEventArgs(session, reason));

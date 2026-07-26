@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -12,24 +12,24 @@ namespace PBIPortWrapper.Presenters
     public class RowDetailsViewManager
     {
         private readonly DataGridView _dataGridView;
-        private readonly ProxyManager _proxyManager;
         private readonly ConfigService _configService;
         private readonly ServeSessionService _serveSessions;
+        private readonly Func<string, string> _endpointUrlForAlias;
         private readonly Action<string> _logCallback;
         private readonly Dictionary<int, RowDetailsPanel> _panels = new Dictionary<int, RowDetailsPanel>();
         private readonly DetailRowManager _detailRowManager = new DetailRowManager();
 
         public RowDetailsViewManager(
             DataGridView dataGridView,
-            ProxyManager proxyManager,
             ConfigService configService,
             ServeSessionService serveSessions,
+            Func<string, string> endpointUrlForAlias,
             Action<string> logCallback)
         {
             _dataGridView = dataGridView;
-            _proxyManager = proxyManager;
             _configService = configService;
             _serveSessions = serveSessions;
+            _endpointUrlForAlias = endpointUrlForAlias;
             _logCallback = logCallback;
 
             _dataGridView.Scroll += (s, e) => UpdatePanelPositions();
@@ -60,8 +60,8 @@ namespace PBIPortWrapper.Presenters
 
                 if (!_panels.ContainsKey(pid))
                 {
-                    var presenter = new RowDetailsPresenter(instance, _proxyManager, _configService, _serveSessions);
-                    var panel = new RowDetailsPanel(presenter, _logCallback);
+                    var presenter = new RowDetailsPresenter(instance, _configService, _serveSessions, _endpointUrlForAlias);
+                    var panel = new RowDetailsPanel(presenter);
                     _dataGridView.Controls.Add(panel);
                     _panels[pid] = panel;
                 }
@@ -98,21 +98,6 @@ namespace PBIPortWrapper.Presenters
                              }
                              panel.Visible = true;
                              visible = true;
-
-                             // Update Panel Data (Port)
-                             if (row.Index > 0)
-                             {
-                                 var parentRow = _dataGridView.Rows[row.Index - 1];
-                                 if (parentRow.Cells["colFixedPort"].Value != null && 
-                                     int.TryParse(parentRow.Cells["colFixedPort"].Value.ToString(), out int port))
-                                 {
-                                     panel.UpdateConnectionInfo(port);
-                                 }
-                                 else
-                                 {
-                                     panel.UpdateConnectionInfo(0);
-                                 }
-                             }
                          }
                          break;
                      }

@@ -1,4 +1,4 @@
-using PBIPortWrapper.Services;
+﻿using PBIPortWrapper.Services;
 using Xunit;
 
 namespace PBIPortWrapper.Core.Tests
@@ -9,16 +9,16 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void Build_embeds_the_full_connection_string()
         {
-            var odc = OdcFileBuilder.Build("Sales", "localhost", 55555, "Sales");
+            var odc = OdcFileBuilder.Build("Sales", "http://localhost:55556/Sales", "Sales");
             Assert.Contains(
-                "<odc:ConnectionString>Provider=MSOLAP;Data Source=localhost:55555;Initial Catalog=Sales</odc:ConnectionString>",
+                "<odc:ConnectionString>Provider=MSOLAP;Data Source=http://localhost:55556/Sales;Initial Catalog=Sales</odc:ConnectionString>",
                 odc);
         }
 
         [Fact]
         public void Build_uses_cube_command_with_the_model_cube()
         {
-            var odc = OdcFileBuilder.Build("Sales", "localhost", 55555, "Sales");
+            var odc = OdcFileBuilder.Build("Sales", "http://localhost:55556/Sales", "Sales");
             Assert.Contains("<odc:CommandType>Cube</odc:CommandType>", odc);
             Assert.Contains("<odc:CommandText>Model</odc:CommandText>", odc);
             Assert.Contains("content=\"Model\"", odc); // Table meta
@@ -27,7 +27,7 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void Build_sets_catalog_meta_and_title()
         {
-            var odc = OdcFileBuilder.Build("Sales Report", "localhost", 55555, "SalesCatalog");
+            var odc = OdcFileBuilder.Build("Sales Report", "http://localhost:55556/SalesCatalog", "SalesCatalog");
             Assert.Contains("content=\"SalesCatalog\"", odc); // Catalog meta
             Assert.Contains("<title>Sales Report</title>", odc);
             Assert.Contains("ProgId", odc);
@@ -37,15 +37,15 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void Build_title_falls_back_to_catalog_when_model_name_blank()
         {
-            var odc = OdcFileBuilder.Build("  ", "localhost", 55555, "Finance");
+            var odc = OdcFileBuilder.Build("  ", "http://localhost:55556/Finance", "Finance");
             Assert.Contains("<title>Finance</title>", odc);
         }
 
         [Fact]
-        public void Build_uses_lan_host_and_port_in_connection_string()
+        public void Build_uses_the_models_endpoint_url_as_the_data_source()
         {
-            var odc = OdcFileBuilder.Build("Sales", "192.168.0.10", 55600, "Sales");
-            Assert.Contains("Data Source=192.168.0.10:55600", odc);
+            var odc = OdcFileBuilder.Build("Sales", "http://192.168.0.10:55556/Sales", "Sales");
+            Assert.Contains("Data Source=http://192.168.0.10:55556/Sales", odc);
         }
 
         [Theory]
@@ -54,7 +54,7 @@ namespace PBIPortWrapper.Core.Tests
         [InlineData("He said \"hi\"")]
         public void Build_xml_escapes_values(string modelName)
         {
-            var odc = OdcFileBuilder.Build(modelName, "localhost", 55555, "Sales");
+            var odc = OdcFileBuilder.Build(modelName, "http://localhost:55556/Sales", "Sales");
             Assert.DoesNotContain("<title>" + modelName + "</title>", odc);
             Assert.DoesNotContain("&B</title>", odc.Substring(odc.IndexOf("<title>"))); // raw & not left bare
         }
@@ -62,7 +62,7 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void Build_honors_a_custom_cube_name()
         {
-            var odc = OdcFileBuilder.Build("Sales", "localhost", 55555, "Sales", "SalesCube");
+            var odc = OdcFileBuilder.Build("Sales", "http://localhost:55556/Sales", "Sales", "SalesCube");
             Assert.Contains("<odc:CommandText>SalesCube</odc:CommandText>", odc);
         }
 

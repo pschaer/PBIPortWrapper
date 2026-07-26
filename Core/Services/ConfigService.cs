@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using PBIPortWrapper.Models;
 
@@ -35,44 +35,10 @@ namespace PBIPortWrapper.Services
         /// exact model name; despite the field's name, ModelNamePattern has always
         /// been treated as an exact name by the grid and auto-connect.
         /// </summary>
-        public PortMappingRule FindRule(string modelName)
+        public ModelRule FindRule(string modelName)
         {
             if (Current == null || string.IsNullOrEmpty(modelName)) return null;
-            return Current.PortMappings.FirstOrDefault(r => r.ModelNamePattern == modelName);
-        }
-
-        public void UpdateRule(string modelName, int fixedPort, bool autoConnect, bool allowNetwork)
-        {
-            if (Current == null) return;
-            if (string.IsNullOrEmpty(modelName)) return;
-            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
-
-            var rule = FindRule(modelName);
-            if (rule == null)
-            {
-                if (fixedPort <= 0) return; // Don't create invalid rules
-
-                rule = new PortMappingRule
-                {
-                    ModelNamePattern = modelName,
-                    FixedPort = fixedPort,
-                    AutoConnect = autoConnect,
-                    AllowNetworkAccess = allowNetwork
-                };
-                Current.PortMappings.Add(rule);
-            }
-            else
-            {
-                // If setting to 0, might mean delete? Or just disable?
-                // The original logic kept the rule but updated values.
-                // However, usually 0 fixed port implies invalid/removed in this app's context.
-                // But let's stick to update behavior.
-                rule.FixedPort = fixedPort;
-                rule.AutoConnect = autoConnect;
-                rule.AllowNetworkAccess = allowNetwork;
-            }
-
-            Save();
+            return Current.Models.FirstOrDefault(r => r.ModelNamePattern == modelName);
         }
 
         public void RemoveRule(string modelName)
@@ -82,7 +48,7 @@ namespace PBIPortWrapper.Services
             var rule = FindRule(modelName);
             if (rule != null)
             {
-                Current.PortMappings.Remove(rule);
+                Current.Models.Remove(rule);
                 Save();
             }
         }
@@ -98,8 +64,8 @@ namespace PBIPortWrapper.Services
             var rule = FindRule(modelName);
             if (rule == null)
             {
-                rule = new PortMappingRule { ModelNamePattern = modelName };
-                Current.PortMappings.Add(rule);
+                rule = new ModelRule { ModelNamePattern = modelName };
+                Current.Models.Add(rule);
             }
 
             rule.StableAlias = alias;
@@ -129,10 +95,12 @@ namespace PBIPortWrapper.Services
         }
 
         /// <summary>
-        /// Sets a model's on-detection policy (#85b). Keeps the legacy AutoConnect
-        /// flag consistent so the forward path (AutoConnectService) and the serve
-        /// path (auto-serve) never fight over the same port: Forward implies
-        /// AutoConnect; serve and do-nothing policies clear it.
+        /// Sets a model's on-detection policy (#85b).
+        ///
+        /// The legacy <c>AutoConnect</c> flag is no longer kept in step: it meant
+        /// "forward on detect", and forwarding is gone (#126). It survives only so
+        /// that a pre-v1 config can still be migrated, and is cleared here so a rule
+        /// the user edits stops carrying a stale claim.
         /// </summary>
         public void SetOnDetection(string modelName, OnDetectionPolicy policy)
         {
@@ -142,33 +110,12 @@ namespace PBIPortWrapper.Services
             var rule = FindRule(modelName);
             if (rule == null)
             {
-                rule = new PortMappingRule { ModelNamePattern = modelName };
-                Current.PortMappings.Add(rule);
+                rule = new ModelRule { ModelNamePattern = modelName };
+                Current.Models.Add(rule);
             }
 
             rule.OnDetection = policy;
-            rule.AutoConnect = policy == OnDetectionPolicy.Forward;
-            Save();
-        }
-
-        /// <summary>
-        /// Sets a model's LAN exposure (advanced; same-user only - E1). Takes effect
-        /// when the proxy next starts, so it is a config change, not a live rebind.
-        /// </summary>
-        public void SetNetwork(string modelName, bool allowNetwork)
-        {
-            if (Current == null || string.IsNullOrEmpty(modelName)) return;
-            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
-
-            var rule = FindRule(modelName);
-            if (rule == null)
-            {
-                rule = new PortMappingRule { ModelNamePattern = modelName };
-                Current.PortMappings.Add(rule);
-            }
-
-            if (rule.AllowNetworkAccess == allowNetwork) return;
-            rule.AllowNetworkAccess = allowNetwork;
+            rule.AutoConnect = false;
             Save();
         }
 
@@ -178,6 +125,66 @@ namespace PBIPortWrapper.Services
             if (Current.MinimizeToTray == enabled) return;
 
             Current.MinimizeToTray = enabled;
+            Save();
+        }
+
+        /// <summary>
+        /// The XMLA endpoint's settings (#125). Granular setters, like the per-model
+        /// ones: each writes one field and saves, and XmlaEndpointCoordinator brings
+        /// the running listener into line off ConfigurationChanged. Surfaces never
+        /// start or stop the endpoint themselves.
+        /// </summary>
+        public void SetEndpointEnabled(bool enabled)
+        {
+            if (Current?.HttpBridge == null) return;
+            if (Current.HttpBridge.Enabled == enabled) return;
+
+            Current.HttpBridge.Enabled = enabled;
+            Save();
+        }
+
+        /// <summary>
+        /// Sets the port the endpoint listens on. Rejects anything outside the
+        /// unprivileged range rather than saving a value that can only fail to bind.
+        /// </summary>
+        public (bool IsValid, string ErrorMessage) SetEndpointPort(int port)
+        {
+            if (Current?.HttpBridge == null) return (false, "No configuration loaded.");
+
+            if (port < MinEndpointPort || port > MaxEndpointPort)
+                return (false, $"Port must be between {MinEndpointPort} and {MaxEndpointPort}.");
+
+            if (Current.HttpBridge.Port == port) return (true, string.Empty);
+
+            Current.HttpBridge.Port = port;
+            Save();
+            return (true, string.Empty);
+        }
+
+        public const int MinEndpointPort = 1024;
+        public const int MaxEndpointPort = 65535;
+
+        public void SetEndpointAuthMode(BridgeAuthMode mode)
+        {
+            if (Current?.HttpBridge == null) return;
+            if (Current.HttpBridge.AuthMode == mode) return;
+
+            Current.HttpBridge.AuthMode = mode;
+            Save();
+        }
+
+        /// <summary>
+        /// Sets the host name published in connection URLs. Empty means detect it.
+        /// Display only — it never restarts the listener.
+        /// </summary>
+        public void SetEndpointHostname(string hostname)
+        {
+            if (Current?.HttpBridge == null) return;
+
+            string value = string.IsNullOrWhiteSpace(hostname) ? string.Empty : hostname.Trim();
+            if (string.Equals(Current.HttpBridge.Hostname ?? string.Empty, value, StringComparison.Ordinal)) return;
+
+            Current.HttpBridge.Hostname = value;
             Save();
         }
 

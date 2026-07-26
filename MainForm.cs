@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -20,7 +20,6 @@ namespace PBIPortWrapper
         
         // Presenters (Convenience accessors, or use _appPresenter.X)
         private GridPresenter _gridPresenter;
-        private ProxyPresenter _proxyPresenter;
         private RowDetailsViewManager _rowDetailsManager;
         
         // State
@@ -59,6 +58,7 @@ namespace PBIPortWrapper
             InitializeApplication();
             InitializeEventHandlers();
             InitializeContextMenu();
+            AddEndpointSettingsButton();
             
             // Initial refresh
             RefreshInstances();
@@ -70,7 +70,6 @@ namespace PBIPortWrapper
             
             // Bind Presenters for local usage
             _gridPresenter = _appPresenter.GridPresenter;
-            _proxyPresenter = _appPresenter.ProxyPresenter;
 
             // Bind UI Logging
             _appPresenter.LoggerService.OnLogMessage += (sender, args) => 
@@ -97,92 +96,63 @@ namespace PBIPortWrapper
             // Initialize RowDetailsManager (Requires services)
             _rowDetailsManager = new RowDetailsViewManager(
                 dataGridViewInstances,
-                _appPresenter.ProxyManager,
                 _appPresenter.ConfigService,
                 _appPresenter.ServeSessionService,
+                EndpointUrlFor,
                 LogToService);
         }
+
+        /// <summary>
+        /// A served model's address on the endpoint, or empty when it is not reachable.
+        /// The details panel shows connection details only when they would actually
+        /// connect (#126).
+        /// </summary>
+        private string EndpointUrlFor(string alias)
+        {
+            var status = _appPresenter.Endpoint?.Status;
+            var config = _appPresenter.ConfigService.Current?.HttpBridge;
+            if (status == null || config == null || !status.Running || string.IsNullOrWhiteSpace(alias))
+                return string.Empty;
+
+            return EndpointUrlBuilder.For(
+                ConnectionEndpoint.EndpointHost(config, status), status.Port, alias);
+        }
+
+        /// <summary>The connection string for a served model, or empty when it is not
+        /// reachable. Same source as the tray's Copy connection string.</summary>
+        private string ConnectionStringFor(string alias) =>
+            ConnectionStringBuilder.ForEndpoint(EndpointUrlFor(alias), alias);
 
         private void ConfigureGridColumns()
         {
             this.Text = Presenters.ApplicationPresenter.AppTitle;
-
-            // The designer's RowTemplate.Height is 96-DPI pixels, but fonts scale
-            // with monitor DPI (PerMonitorV2) - rows must follow the font or the
-            // text gets clipped on scaled displays.
-            int rowHeight = dataGridViewInstances.Font.Height + 10;
-            dataGridViewInstances.RowTemplate.Height = rowHeight;
-            dataGridViewInstances.RowTemplate.MinimumHeight = rowHeight;
-
-            // Add Expand Column
-            if (!dataGridViewInstances.Columns.Contains("colExpand"))
-            {
-                var colExpand = new DataGridViewTextBoxColumn();
-                colExpand.Name = "colExpand";
-                colExpand.HeaderText = "";
-                colExpand.ReadOnly = true;
-                colExpand.Width = LogicalToDeviceUnits(30);
-                colExpand.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                dataGridViewInstances.Columns.Insert(0, colExpand);
-            }
-
-            // Add Active Connections Column
-            if (!dataGridViewInstances.Columns.Contains("colActive"))
-            {
-                var colActive = new DataGridViewTextBoxColumn();
-                colActive.Name = "colActive";
-                colActive.HeaderText = "Active";
-                colActive.ReadOnly = true;
-                colActive.Width = LogicalToDeviceUnits(60);
-                dataGridViewInstances.Columns.Add(colActive);
-            }
-
-            // On-detection policy dropdown (#88): same choices, in the same order, as
-            // the tray "On detection" submenu, so grid and tray read identically.
-            var onDetectionCol = (DataGridViewComboBoxColumn)dataGridViewInstances.Columns["colOnDetection"];
-            onDetectionCol.Items.Clear();
-            foreach (var policy in OnDetectionPolicyLabel.Order)
-                onDetectionCol.Items.Add(OnDetectionPolicyLabel.For(policy));
-            onDetectionCol.FlatStyle = FlatStyle.Flat;
-
-            dataGridViewInstances.Columns["colExpand"].DisplayIndex = 0;
-            dataGridViewInstances.Columns["colModelName"].DisplayIndex = 1;
-            dataGridViewInstances.Columns["colPbiPort"].DisplayIndex = 2;
-            dataGridViewInstances.Columns["colFixedPort"].DisplayIndex = 3;
-            dataGridViewInstances.Columns["colOnDetection"].DisplayIndex = 4;
-            dataGridViewInstances.Columns["colNetwork"].DisplayIndex = 5;
-            dataGridViewInstances.Columns["colAction"].DisplayIndex = 6;
-            dataGridViewInstances.Columns["colStatus"].DisplayIndex = 7;
-            dataGridViewInstances.Columns["colActive"].DisplayIndex = 8;
-
-            dataGridViewInstances.Columns["colModelName"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            dataGridViewInstances.Columns["colModelName"].FillWeight = 2.4f;
-
-            dataGridViewInstances.Columns["colExpand"].AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
-            dataGridViewInstances.Columns["colExpand"].Width = LogicalToDeviceUnits(30);
-
-            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colNetwork", "colStatus", "colAction", "colActive" })
-            {
-                dataGridViewInstances.Columns[colName].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-                dataGridViewInstances.Columns[colName].FillWeight = 1.0f;
-            }
-
-            // The policy labels ("Serve after grace period") are wide; give the dropdown room.
-            dataGridViewInstances.Columns["colOnDetection"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-            dataGridViewInstances.Columns["colOnDetection"].FillWeight = 2.0f;
-
-            foreach (var colName in new[] { "colPbiPort", "colFixedPort", "colStatus", "colActive" })
-            {
-                dataGridViewInstances.Columns[colName].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-                dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            }
-
-            foreach (var colName in new[] { "colOnDetection", "colNetwork", "colAction" })
-            {
-                dataGridViewInstances.Columns[colName].HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            }
-            
+            Presenters.GridColumnLayout.Apply(dataGridViewInstances, LogicalToDeviceUnits);
             buttonRefresh.Visible = false;
+        }
+
+        /// <summary>
+        /// The dashboard's way into the endpoint's typed settings (#125). Added in code
+        /// rather than the designer: the tray carries the switches, so this is one
+        /// button, and keeping it here avoids a designer round trip for one control.
+        /// </summary>
+        private void AddEndpointSettingsButton()
+        {
+            var button = new Button
+            {
+                Text = "XMLA endpoint…",
+                AutoSize = true,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Location = new Point(LogicalToDeviceUnits(400), LogicalToDeviceUnits(20))
+            };
+            button.Click += (s, e) =>
+            {
+                using (var dialog = new Controls.EndpointSettingsDialog(
+                           _appPresenter.ConfigService, _appPresenter.Endpoint))
+                {
+                    dialog.ShowDialog(this);
+                }
+            };
+            panelTop.Controls.Add(button);
         }
 
         private void InitializeEventHandlers()
@@ -197,11 +167,12 @@ namespace PBIPortWrapper
 
             _trayMenu = new TrayMenuManager(
                 notifyIcon, contextMenuStripTray,
-                _appPresenter.ProxyManager, _appPresenter.ServeSessionService,
-                _proxyPresenter, serveHandler, _appPresenter.ConfigService,
+                _appPresenter.ServeSessionService,
+                serveHandler, _appPresenter.ConfigService,
+                _appPresenter.Endpoint,
                 ShowFromTray, () => this.Close());
 
-            _toasts = new TrayToastService(notifyIcon);
+            _toasts = new TrayToastService(notifyIcon, ConnectionStringFor);
             _lifecycle = new ServeLifecycleCoordinator(
                 _appPresenter.ServeSessionService, _appPresenter.ConfigService,
                 _toasts, ShowFromTray, LogToService);
@@ -209,10 +180,8 @@ namespace PBIPortWrapper
             _eventCoordinator = new ViewEventCoordinator(
                 dataGridViewInstances,
                 contextMenuStripGrid,
-                _appPresenter.ValidationService,
                 _gridPresenter,
                 () => _currentInstances,
-                (port) => _appPresenter.ProxyManager.IsRunning(port),
                 RefreshInstances,
                 ToggleRowExpansion,
                 serveHandler,
@@ -220,21 +189,15 @@ namespace PBIPortWrapper
                 ws => _appPresenter.ServeSessionService.FindSession(ws) != null
             );
 
-            // Wire up Domain Events from View
-            _eventCoordinator.ConfigRequested += (s, args) =>
-            {
-                _appPresenter.ConfigService.UpdateRule(args.ModelName, args.FixedPort, args.Auto, args.AllowNetwork);
-            };
-
             // Reflect config edits (e.g. a grid policy change) in the tray immediately.
             // ConfigurationChanged can fire from a background serve, so marshal to the UI.
-            _appPresenter.ConfigService.ConfigurationChanged += (s, e) =>
-            {
-                if (IsDisposed || Disposing) return;
-                try { BeginInvoke(new Action(() => _trayMenu?.Rebuild(_currentInstances))); }
-                catch (ObjectDisposedException) { }
-                catch (InvalidOperationException) { }
-            };
+            _appPresenter.ConfigService.ConfigurationChanged += (s, e) => RebuildTrayOnUiThread();
+
+            // The endpoint's status is not a configuration value - a bind can fail, or
+            // fall back to localhost - and it is applied after the configuration change
+            // that caused it. Subscribing here as well means the tray shows the outcome
+            // without depending on the order two handlers happen to run in.
+            _appPresenter.Endpoint.StatusChanged += (s, e) => RebuildTrayOnUiThread();
 
             // Grid On-detection dropdown / Network checkbox -> config (#88). Persist on
             // the user's commit (the cell going dirty), NOT on CellValueChanged - so the
@@ -253,15 +216,37 @@ namespace PBIPortWrapper
                     if (OnDetectionPolicyLabel.TryParse(cell.Value?.ToString(), out var policy))
                         _appPresenter.ConfigService.SetOnDetection(modelName, policy);
                 }
-                else if (cell is DataGridViewCheckBoxCell && cell.OwningColumn?.Name == "colNetwork")
+            };
+
+            // The alias is free text, so it commits when the user leaves the cell
+            // rather than on every keystroke. It is validated first: an invalid alias
+            // would be rejected by the rename anyway, and finding that out at serve
+            // time is far worse than being told here (#126).
+            dataGridViewInstances.CellEndEdit += (s, e) =>
+            {
+                var grid = dataGridViewInstances;
+                if (e.RowIndex < 0 || grid.Columns[e.ColumnIndex].Name != "colAlias") return;
+
+                var row = grid.Rows[e.RowIndex];
+                string modelName = row.Cells["colModelName"].Value?.ToString();
+                if (string.IsNullOrEmpty(modelName)) return;
+
+                string alias = row.Cells["colAlias"].Value?.ToString()?.Trim() ?? string.Empty;
+                var rule = _appPresenter.ConfigService.FindRule(modelName);
+                if (alias == (rule?.StableAlias ?? string.Empty)) return;
+
+                if (alias.Length > 0)
                 {
-                    // A checkbox's committed Value still holds the OLD state here; the new
-                    // state is the pending edit. Read that, or the toggle reads backwards
-                    // and the projection snaps it back (couldn't de-select network).
-                    bool newValue = Convert.ToBoolean(cell.EditedFormattedValue);
-                    dataGridViewInstances.CommitEdit(DataGridViewDataErrorContexts.Commit);
-                    _appPresenter.ConfigService.SetNetwork(modelName, newValue);
+                    var (isValid, error) = AliasValidator.ValidateAlias(alias);
+                    if (!isValid)
+                    {
+                        MessageBox.Show(error, "Alias", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        row.Cells["colAlias"].Value = rule?.StableAlias;   // put the old one back
+                        return;
+                    }
                 }
+
+                _appPresenter.ConfigService.SetStableAlias(modelName, alias);
             };
 
             // Never let a stray combobox value mismatch surface as a modal error dialog.
@@ -271,23 +256,6 @@ namespace PBIPortWrapper
             {
                 switch (args.Action)
                 {
-                    case RowActionType.Start:
-                        await _appPresenter.ProxyPresenter.StartProxyAsync(args.Instance, args.FixedPort, args.AllowNetwork);
-                        break;
-
-                    case RowActionType.Stop:
-                        int activeCount = _appPresenter.ProxyManager.GetActiveConnections(args.FixedPort);
-                        if (activeCount > 0)
-                        {
-                            var result = MessageBox.Show(
-                                $"There are {activeCount} active connection(s) to this proxy.\nStopping it will disconnect them.\n\nAre you sure you want to stop?",
-                                "Active Connections Warning", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-
-                            if (result != DialogResult.Yes) return;
-                        }
-                        _appPresenter.ProxyPresenter.StopProxy(args.FixedPort, args.Instance?.WorkspaceId);
-                        break;
-
                     case RowActionType.Remove:
                         _appPresenter.ConfigService.RemoveRule(args.ModelName);
                         break;
@@ -295,8 +263,6 @@ namespace PBIPortWrapper
             };
             
             dataGridViewInstances.CellContentClick += _eventCoordinator.OnCellContentClick;
-            dataGridViewInstances.CellEndEdit += _eventCoordinator.OnCellEndEdit;
-            dataGridViewInstances.CellValidating += _eventCoordinator.OnCellValidating;
             dataGridViewInstances.CellEnter += _eventCoordinator.OnCellEnter;
             
             this.FormClosing += MainForm_FormClosing;
@@ -346,7 +312,6 @@ namespace PBIPortWrapper
                 _currentInstances = instances.ToList();
                 _gridPresenter.RefreshGrid(_currentInstances, _appPresenter.ConfigService.Current, _expandedPids);
                 _rowDetailsManager.SyncDetailsPanels(_currentInstances, _expandedPids);
-                _proxyPresenter.ProcessAutoConnect(_currentInstances, _appPresenter.ConfigService.Current);
                 _appPresenter.ServeSessionService.OnInstancesChanged(_currentInstances);
                 _appPresenter.ServeRecovery.OnSnapshot(_currentInstances);
                 _trayMenu?.Rebuild(_currentInstances);
@@ -377,13 +342,13 @@ namespace PBIPortWrapper
             if (_shutdownComplete) return;              // shutdown finished; let this close proceed
             if (_shuttingDown) { e.Cancel = true; return; } // shutdown already in progress
 
-            bool serving = _appPresenter.ServeSessionService.ActiveSessions.Count > 0;
-
-            if (_appPresenter.ProxyManager.HasRunningProxies())
+            // Only serving is worth confirming now: it renames real databases, and
+            // exiting puts those names back. Nothing else is left running to warn about.
+            if (_appPresenter.ServeSessionService.ActiveSessions.Count > 0)
             {
-                string message = serving
-                    ? "Models are being served. Exiting will restore their original database names and stop forwarding.\n\nExit now?"
-                    : "There are active Power BI proxies running.\nClosing the application will stop them.\n\nAre you sure you want to exit?";
+                const string message =
+                    "Models are being served. Exiting will restore their original database names " +
+                    "and they will stop answering on the XMLA endpoint.\n\nExit now?";
 
                 if (MessageBox.Show(message, "Confirm Exit", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 {
@@ -431,6 +396,19 @@ namespace PBIPortWrapper
 
         private void NotifyIcon_DoubleClick(object sender, EventArgs e) => ShowFromTray();
 
+        /// <summary>
+        /// Rebuilds the tray from whichever thread notices a change. Serve completions
+        /// and endpoint restarts both arrive off the UI thread, and the menu is a UI
+        /// object, so every path marshals through here.
+        /// </summary>
+        private void RebuildTrayOnUiThread()
+        {
+            if (IsDisposed || Disposing) return;
+            try { BeginInvoke(new Action(() => _trayMenu?.Rebuild(_currentInstances))); }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+        }
+
         private void ToolStripMenuItemShow_Click(object sender, EventArgs e) => ShowFromTray();
 
         private void ShowFromTray()
@@ -442,9 +420,6 @@ namespace PBIPortWrapper
         }
 
         private void ToolStripMenuItemExit_Click(object sender, EventArgs e) => this.Close();
-
-        private void ToolStripMenuItemCopy_Click(object sender, EventArgs e) =>
-            _eventCoordinator.ContextMenuHandler.OnCopyConnectionStringClick(sender, e);
 
         private void LogToService(string message)
         {

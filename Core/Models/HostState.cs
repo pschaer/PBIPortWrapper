@@ -1,21 +1,21 @@
 namespace PBIPortWrapper.Models
 {
     /// <summary>
-    /// The proxy state of a model in the tray-first workflow (v0.7, #84):
-    /// a single Off → Forward → Serve axis that replaces the separate
-    /// Start/Stop and Serve/Stop-Serving actions. <c>Serve</c> is <c>Forward</c>
-    /// plus a database rename to the stable alias.
+    /// Whether a model is being served (#126). Forwarding was the third state on this
+    /// axis until v1.0 retired it: it gave a model a stable TCP port but no stable
+    /// name, and only for the same Windows user — precisely what the XMLA endpoint
+    /// replaced.
     /// </summary>
     public enum HostState
     {
-        /// <summary>Not proxied.</summary>
+        /// <summary>Detected, but not reachable through the endpoint.</summary>
         Off = 0,
 
-        /// <summary>Stable port forwarded; database keeps its session GUID; Desktop editable.</summary>
-        Forward = 1,
-
-        /// <summary>Stable port forwarded and database renamed to the alias; Desktop blocked while served.</summary>
-        Serve = 2
+        /// <summary>
+        /// Database renamed to the stable alias and answering on the endpoint at its
+        /// own path. Power BI Desktop cannot edit the model while it is served.
+        /// </summary>
+        Serve = 1
     }
 
     /// <summary>
@@ -25,16 +25,10 @@ namespace PBIPortWrapper.Models
     /// </summary>
     public enum HostAction
     {
-        /// <summary>Go to Forward (stable port only).</summary>
-        Forward = 0,
+        /// <summary>Rename to the alias and publish it on the endpoint.</summary>
+        Serve = 0,
 
-        /// <summary>Go to Serve (rename + forward).</summary>
-        Serve = 1,
-
-        /// <summary>Stop serving but keep forwarding (drop the rename so Desktop is editable): Serve → Forward.</summary>
-        StopServing = 2,
-
-        /// <summary>Stop everything: → Off.</summary>
-        Stop = 3
+        /// <summary>Stop serving and restore the database's original name.</summary>
+        Stop = 1
     }
 }

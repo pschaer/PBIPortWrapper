@@ -66,11 +66,9 @@ namespace PBIPortWrapper.Presenters
 
             // E3-validated copy: Desktop showing errors while renamed is expected.
             string warning =
-                $"Serve '{instance.FileName}' as '{profile.StableAlias}' on port {profile.FixedPort}?\n\n" +
+                $"Serve '{instance.FileName}' as '{profile.StableAlias}'?\n\n" +
                 "While serving, Power BI Desktop will repeatedly show \"Cannot load model\" errors on its own. " +
                 "This is expected. Do not troubleshoot in Desktop; click Stop to restore it.";
-            if (profile.AllowNetworkAccess)
-                warning += $"\n\nNetwork Access is enabled: ensure Windows Firewall allows inbound connections on port {profile.FixedPort}.";
 
             if (MessageBox.Show(warning, "Start serving",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)

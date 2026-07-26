@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using PBIPortWrapper.Models;
 using PBIPortWrapper.Services;
 using Xunit;
@@ -45,7 +45,6 @@ namespace PBIPortWrapper.Core.Tests
 
         [Theory]
         [InlineData(OnDetectionPolicy.DoNothing)]
-        [InlineData(OnDetectionPolicy.Forward)]
         public void Off_Detected_NonServePolicy_StaysOff(OnDetectionPolicy policy)
         {
             var r = Decide(ServeLifecycleState.Off, ServeTrigger.Detected, Known(policy));
@@ -81,11 +80,39 @@ namespace PBIPortWrapper.Core.Tests
             Assert.Empty(r.Commands);
         }
 
-        [Fact]
-        public void Off_Detected_NotServable_StaysOff()
+        [Fact] // #114 — serve policy + not servable → advisory toast
+        public void Off_Detected_NotServable_ServeImmediately_NotifiesNotServable()
         {
             var r = Decide(ServeLifecycleState.Off, ServeTrigger.Detected,
                 Known(OnDetectionPolicy.ServeImmediately, servable: false));
+            Assert.Equal(ServeLifecycleState.Off, r.Next);
+            Assert.Equal(new[] { ServeCommand.NotifyNotServable }, r.Commands);
+        }
+
+        [Fact] // #114
+        public void Off_Detected_NotServable_ServeAfterGrace_NotifiesNotServable()
+        {
+            var r = Decide(ServeLifecycleState.Off, ServeTrigger.Detected,
+                Known(OnDetectionPolicy.ServeAfterGrace, servable: false));
+            Assert.Equal(ServeLifecycleState.Off, r.Next);
+            Assert.Equal(new[] { ServeCommand.NotifyNotServable }, r.Commands);
+        }
+
+        [Theory] // #114 — non-serve policies don't care about servability → silent
+        [InlineData(OnDetectionPolicy.DoNothing)]
+        public void Off_Detected_NotServable_NonServePolicy_StaysOffSilently(OnDetectionPolicy policy)
+        {
+            var r = Decide(ServeLifecycleState.Off, ServeTrigger.Detected,
+                Known(policy, servable: false));
+            Assert.Equal(ServeLifecycleState.Off, r.Next);
+            Assert.Empty(r.Commands);
+        }
+
+        [Fact] // #114 — suppression takes priority over not-servable → silent
+        public void Off_Detected_Suppressed_NotServable_StaysSilent()
+        {
+            var r = Decide(ServeLifecycleState.Off, ServeTrigger.Detected,
+                Known(OnDetectionPolicy.ServeImmediately, servable: false, suppressed: true));
             Assert.Equal(ServeLifecycleState.Off, r.Next);
             Assert.Empty(r.Commands);
         }
@@ -248,22 +275,21 @@ namespace PBIPortWrapper.Core.Tests
         // ---- IsServable ------------------------------------------------------------
 
         [Fact]
-        public void IsServable_true_for_alias_and_valid_port()
+        public void IsServable_true_for_an_alias()
         {
-            var rule = new PortMappingRule { StableAlias = "Sales", FixedPort = 55555 };
-            Assert.True(ServeLifecycleMachine.IsServable(rule));
+            Assert.True(ServeLifecycleMachine.IsServable(new ModelRule { StableAlias = "Sales" }));
         }
 
         [Theory]
-        [InlineData(null, 55555)]  // no alias
-        [InlineData("  ", 55555)]  // blank alias
-        [InlineData("Sales", 0)]   // no port
-        [InlineData("Sales", 80)]  // port out of range
-        public void IsServable_false_when_alias_or_port_unusable(string alias, int port)
+        [InlineData(null)]  // no alias
+        [InlineData("")]    // empty alias
+        [InlineData("  ")]  // blank alias
+        public void IsServable_false_without_a_usable_alias(string alias)
         {
-            var rule = new PortMappingRule { StableAlias = alias, FixedPort = port };
-            Assert.False(ServeLifecycleMachine.IsServable(rule));
+            Assert.False(ServeLifecycleMachine.IsServable(new ModelRule { StableAlias = alias }));
         }
+
+        
 
         [Fact]
         public void IsServable_false_for_null_rule() => Assert.False(ServeLifecycleMachine.IsServable(null));

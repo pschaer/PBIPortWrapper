@@ -24,5 +24,24 @@ namespace PBIPortWrapper.Services
                 s += $";Initial Catalog={alias}";
             return s;
         }
+
+        /// <summary>
+        /// The MSOLAP connection string for a model on the XMLA endpoint (#126), where
+        /// the data source is the model's own URL rather than a host and port:
+        /// <c>Provider=MSOLAP;Data Source=http://host:55555/Sales;Initial Catalog=Sales</c>.
+        ///
+        /// The URL selects the server; the catalog still selects the database on it.
+        /// Everything that hands a user connection details goes through here, so the
+        /// copy button, the details panel and the generated .odc cannot drift apart.
+        /// </summary>
+        public static string ForEndpoint(string endpointUrl, string alias)
+        {
+            if (string.IsNullOrWhiteSpace(endpointUrl)) return string.Empty;
+
+            var s = $"Provider=MSOLAP;Data Source={endpointUrl}";
+            if (!string.IsNullOrWhiteSpace(alias))
+                s += $";Initial Catalog={alias}";
+            return s;
+        }
     }
 }

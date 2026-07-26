@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,18 +16,19 @@ namespace PBIPortWrapper.Presenters
         public PowerBIDetector Detector { get; private set; }
         public InstanceMonitor Monitor { get; private set; }
         public LoggerService LoggerService { get; private set; }
-        public ProxyManager ProxyManager { get; private set; }
         public ConfigurationManager ConfigManager { get; private set; }
-        public ValidationService ValidationService { get; private set; }
         public DatabaseRenameService RenameService { get; private set; }
         
         // Services
         public ConfigService ConfigService { get; private set; }
         public ServeSessionService ServeSessionService { get; private set; }
+        public HttpBridgeService HttpBridge { get; private set; }
+
+        /// <summary>Owns the endpoint's lifetime and its status (#125).</summary>
+        public XmlaEndpointCoordinator Endpoint { get; private set; }
 
         // Presenters
         public GridPresenter GridPresenter { get; private set; }
-        public ProxyPresenter ProxyPresenter { get; private set; }
         public ServeRecoveryCoordinator ServeRecovery { get; private set; }
 
 
@@ -45,8 +46,6 @@ namespace PBIPortWrapper.Presenters
             Detector = new PowerBIDetector();
             LoggerService = new LoggerService(LogLevel.Info);
             ConfigManager = new ConfigurationManager();
-            ValidationService = new ValidationService();
-            ProxyManager = new ProxyManager(LoggerService);
             RenameService = new DatabaseRenameService(LoggerService);
             Monitor = new InstanceMonitor(Detector, LogToService);
             ConfigService = new ConfigService(ConfigManager);
@@ -54,19 +53,41 @@ namespace PBIPortWrapper.Presenters
             // Preflight (#59): UIA undo-heuristic probe; Clean lets serve start
             // silently, MaybeDirty/Unknown make the UI ask the user.
             ServeSessionService = new ServeSessionService(
-                RenameService, ProxyManager, ConfigService, new UiaDirtyStateProbe(LogToService), LoggerService);
+                RenameService, ConfigService, new UiaDirtyStateProbe(LogToService), LoggerService);
+
+            // XMLA endpoint (#77): stays off unless enabled in config. The coordinator
+            // owns its lifetime from here on, so settings can change while running
+            // (#125); binding failures surface as status and are never fatal — the
+            // wrapper's core job must not depend on it.
+            HttpBridge = new HttpBridgeService(
+                new XmlaRelay(ServedCatalogs, LoggerService), LoggerService);
+            Endpoint = new XmlaEndpointCoordinator(HttpBridge, ConfigService, LoggerService);
+            Endpoint.StatusChanged += (_, status) => LogToService($"XMLA endpoint: {status.Summary}");
+            Endpoint.ApplyConfiguration();
+        }
+
+        /// <summary>
+        /// Every model currently reachable through the XMLA endpoint. Serving is what
+        /// puts a model on this list: it renames the workspace database to the stable
+        /// alias at the source, so the alias is both the path a client addresses and
+        /// the catalog msmdsrv already has. Nothing to rewrite anywhere.
+        /// </summary>
+        private IReadOnlyList<ServedCatalog> ServedCatalogs()
+        {
+            return ServeSessionService.ActiveSessions
+                .Where(s => !string.IsNullOrWhiteSpace(s.Alias))
+                .OrderBy(s => s.Alias, StringComparer.OrdinalIgnoreCase)
+                .Select(s => new ServedCatalog(s.Alias, s.InstancePort))
+                .ToList();
         }
 
         private void InitializePresenters(DataGridView grid)
         {
-            ProxyPresenter = new ProxyPresenter(ProxyManager, LogToService);
             ServeRecovery = new ServeRecoveryCoordinator(
                 ServeSessionService, RenameService, ConfigService, grid, LogToService);
             
             GridPresenter = new GridPresenter(
                 grid,
-                ProxyManager,
-                ValidationService,
                 ConfigService.Current,
                 ServeSessionService.FindSession,
                 ConfigService.FindRule,
@@ -75,32 +96,13 @@ namespace PBIPortWrapper.Presenters
 
         private void WireUpInternalEvents()
         {
-            // Proxy Status Updates -> Grid
-            ProxyManager.OnProxyStarted += (sender, args) =>
-            {
-                GridPresenter?.UpdateGridStatus(args.FixedPort);
-                LogToService($"Started proxy on port {args.FixedPort} -> {args.TargetPort}");
-            };
-
-            ProxyManager.OnProxyStopped += (sender, args) =>
-            {
-                GridPresenter?.UpdateGridStatus(args.FixedPort);
-                LogToService($"Stopped proxy on port {args.FixedPort}");
-            };
-
             // Serve sessions own their rows' painting (#59): repaint on start/end
             // so "Serving" appears and clears without waiting for the next scan.
             ServeSessionService.SessionStarted += (sender, args) => GridPresenter?.RepaintAllRows();
             ServeSessionService.SessionEnded += (sender, args) => GridPresenter?.RepaintAllRows();
 
             // Alias edits change Serve availability; repaint when config is saved.
-            ConfigService.ConfigurationChanged += (sender, args) => GridPresenter?.RepaintAllRows();
-
-            ProxyManager.OnProxyConnectionCountChanged += (sender, args) =>
-            {
-                GridPresenter?.UpdateActiveConnections(args.FixedPort, args.Count);
-            };
-        }
+            ConfigService.ConfigurationChanged += (sender, args) => GridPresenter?.RepaintAllRows();        }
 
         /// <summary>
         /// Window/log title with the version derived from the assembly, so a release
@@ -136,7 +138,7 @@ namespace PBIPortWrapper.Presenters
         public void StopAll()
         {
             Monitor?.Dispose();
-            ProxyManager?.StopAll();
+            Endpoint?.Dispose();   // unsubscribes, then stops the listener
         }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using PBIPortWrapper.Models;
 using PBIPortWrapper.Services;
@@ -27,7 +27,6 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Theory]
-        [InlineData(OnDetectionPolicy.Forward, true)]
         [InlineData(OnDetectionPolicy.ServeImmediately, false)]
         [InlineData(OnDetectionPolicy.ServeAfterGrace, false)]
         [InlineData(OnDetectionPolicy.DoNothing, false)]
@@ -40,7 +39,7 @@ namespace PBIPortWrapper.Core.Tests
 
             var reloaded = new ConfigService(new ConfigurationManager(_tempDir));
             reloaded.Load();
-            var rule = Assert.Single(reloaded.Current.PortMappings);
+            var rule = Assert.Single(reloaded.Current.Models);
             Assert.Equal(policy, rule.OnDetection);
             Assert.Equal(expectedAutoConnect, rule.AutoConnect);
         }
@@ -53,7 +52,7 @@ namespace PBIPortWrapper.Core.Tests
 
             svc.SetOnDetection("Untitled", OnDetectionPolicy.ServeImmediately);
 
-            Assert.Empty(svc.Current.PortMappings);
+            Assert.Empty(svc.Current.Models);
         }
     }
 }

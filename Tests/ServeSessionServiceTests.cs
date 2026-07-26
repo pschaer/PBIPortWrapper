@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -43,7 +43,6 @@ namespace PBIPortWrapper.Core.Tests
 
         private readonly string _tempDir;
         private readonly ConfigService _config;
-        private readonly ProxyManager _proxyManager = new ProxyManager();
         private readonly FakeRenameEngine _engine = new FakeRenameEngine();
         private readonly FakeDirtyProbe _probe = new FakeDirtyProbe();
         private readonly ServeSessionService _service;
@@ -53,12 +52,11 @@ namespace PBIPortWrapper.Core.Tests
             _tempDir = Path.Combine(Path.GetTempPath(), "PBIPortWrapperTests", Guid.NewGuid().ToString("N"));
             _config = new ConfigService(new ConfigurationManager(_tempDir));
             _config.Load();
-            _service = new ServeSessionService(_engine, _proxyManager, _config, _probe);
+            _service = new ServeSessionService(_engine, _config, _probe);
         }
 
         public void Dispose()
         {
-            _proxyManager.StopAll();
             try { Directory.Delete(_tempDir, recursive: true); } catch { }
         }
 
@@ -80,13 +78,8 @@ namespace PBIPortWrapper.Core.Tests
             ProcessId = 4242
         };
 
-        private static PortMappingRule Profile(int fixedPort) => new PortMappingRule
-        {
-            ModelNamePattern = "Sales",
-            FixedPort = fixedPort,
-            StableAlias = "Sales",
-            AllowNetworkAccess = false
-        };
+        private static ModelRule Profile(int fixedPort = 0) =>
+            new ModelRule { ModelNamePattern = "Sales", StableAlias = "Sales" };
 
         private ConfigService ReloadFromDisk()
         {
@@ -96,7 +89,7 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public async Task StartServing_RenamesPersistsAndStartsProxy()
+        public async Task StartServing_RenamesAndPersists()
         {
             var instance = Instance(FreePort());
             var profile = Profile(FreePort());
@@ -108,7 +101,7 @@ namespace PBIPortWrapper.Core.Tests
             Assert.True(result.Success, result.Message);
             var call = Assert.Single(_engine.Calls);
             Assert.Equal((instance.Port, instance.DatabaseName, "Sales"), call);
-            Assert.True(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.NotNull(_service.FindSession("ws-1"));
 
             var record = Assert.Single(ReloadFromDisk().Current.ServeRecoveryRecords);
             Assert.Equal(instance.DatabaseName, record.DatabaseId);
@@ -145,7 +138,7 @@ namespace PBIPortWrapper.Core.Tests
             Assert.True(result.NeedsConfirmation);
             Assert.Equal(DirtyState.Unknown, result.DirtyState);
             Assert.Empty(_engine.Calls);
-            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Null(_service.FindSession("ws-1"));
             Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
         }
 
@@ -174,7 +167,7 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public async Task RenameFailure_ClearsRecordAndStartsNoProxy()
+        public async Task RenameFailure_ClearsRecordAndServesNothing()
         {
             _engine.ShouldFail = name => name == "Sales";
             var profile = Profile(FreePort());
@@ -182,33 +175,15 @@ namespace PBIPortWrapper.Core.Tests
             var result = await _service.StartServingAsync(Instance(FreePort()), profile);
 
             Assert.False(result.Success);
-            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Null(_service.FindSession("ws-1"));
             Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
             Assert.Null(_service.FindSession("ws-1"));
         }
 
-        [Fact]
-        public async Task ProxyFailure_RollsBackRenameAndClearsRecord()
-        {
-            var instance = Instance(FreePort());
-            int blockedPort = FreePort();
-            var blocker = new TcpListener(IPAddress.Loopback, blockedPort);
-            blocker.Start();
-            try
-            {
-                var result = await _service.StartServingAsync(instance, Profile(blockedPort));
-
-                Assert.False(result.Success);
-                Assert.Equal(2, _engine.Calls.Count);
-                Assert.Equal((instance.Port, "Sales", instance.DatabaseName), _engine.Calls[1]);
-                Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
-                Assert.Null(_service.FindSession("ws-1"));
-            }
-            finally
-            {
-                blocker.Stop();
-            }
-        }
+        // Removed with #126: ProxyFailure_RollsBackRenameAndClearsRecord covered a
+        // blocked port aborting a serve and rolling the rename back. Serving no longer
+        // binds anything, so that failure cannot occur - the rollback path it guarded
+        // is gone rather than untested.
 
         [Fact]
         public async Task StopServing_RenamesBackStopsProxyClearsRecord()
@@ -223,7 +198,7 @@ namespace PBIPortWrapper.Core.Tests
 
             Assert.True(result.Success, result.Message);
             Assert.Equal((instance.Port, "Sales", instance.DatabaseName), _engine.Calls[1]);
-            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Null(_service.FindSession("ws-1"));
             Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
             Assert.Null(_service.FindSession("ws-1"));
             Assert.Equal(ServeEndReason.Stopped, ended?.Reason);
@@ -242,7 +217,7 @@ namespace PBIPortWrapper.Core.Tests
 
             // The session is torn down regardless, and the failure is reported (never thrown/swallowed).
             Assert.Null(_service.FindSession("ws-1"));
-            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Null(_service.FindSession("ws-1"));
             Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
             Assert.Contains("simulated failure", result.Message);
         }
@@ -260,7 +235,7 @@ namespace PBIPortWrapper.Core.Tests
             _service.OnInstancesChanged(Array.Empty<PowerBIInstance>());
 
             Assert.Equal(renamesAfterStart, _engine.Calls.Count);
-            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Null(_service.FindSession("ws-1"));
             Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
             Assert.Null(_service.FindSession("ws-1"));
             Assert.Equal(ServeEndReason.DesktopClosed, ended?.Reason);
@@ -275,7 +250,7 @@ namespace PBIPortWrapper.Core.Tests
 
             _service.OnInstancesChanged(new[] { instance });
 
-            Assert.True(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.NotNull(_service.FindSession("ws-1"));
             Assert.NotNull(_service.FindSession("ws-1"));
         }
 
@@ -304,16 +279,19 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public async Task StartServing_RefusesPortForwardingAnotherInstance()
+        public async Task StartServing_NeedsNoPortAtAll()
         {
-            int fixedPort = FreePort();
-            int otherTarget = FreePort();
-            await _proxyManager.StartProxyAsync(fixedPort, otherTarget, false, "Other");
+            // The point of #126: a model is served by renaming it, and the XMLA
+            // endpoint reaches it on the engine's own port. A profile with no port
+            // configured is now perfectly servable — and a port conflict, which used
+            // to roll a completed rename back, cannot happen because nothing binds.
+            var instance = Instance(FreePort());
 
-            var result = await _service.StartServingAsync(Instance(FreePort()), Profile(fixedPort));
+            var result = await _service.StartServingAsync(instance, Profile(fixedPort: 0));
 
-            Assert.False(result.Success);
-            Assert.Empty(_engine.Calls);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal((instance.Port, instance.DatabaseName, "Sales"), Assert.Single(_engine.Calls));
+            Assert.NotNull(_service.FindSession("ws-1"));
         }
 
         [Fact]
@@ -447,7 +425,7 @@ namespace PBIPortWrapper.Core.Tests
 
             Assert.True(result.Success, result.Message);
             Assert.Empty(_engine.Calls);
-            Assert.True(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.NotNull(_service.FindSession("ws-1"));
             Assert.NotNull(_service.FindSession("ws-1"));
             Assert.NotNull(started);
             // Record stays as the crash anchor of the resumed session, re-keyed to the live pid.
@@ -480,7 +458,7 @@ namespace PBIPortWrapper.Core.Tests
 
             _service.OnInstancesChanged(Array.Empty<PowerBIInstance>());
 
-            Assert.False(_proxyManager.IsRunning(profile.FixedPort));
+            Assert.Null(_service.FindSession("ws-1"));
             Assert.Empty(ReloadFromDisk().Current.ServeRecoveryRecords);
             Assert.Null(_service.FindSession("ws-1"));
         }

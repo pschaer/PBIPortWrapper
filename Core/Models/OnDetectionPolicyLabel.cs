@@ -3,8 +3,7 @@ namespace PBIPortWrapper.Models
     /// <summary>
     /// The user-facing labels for <see cref="OnDetectionPolicy"/>, shared by the tray
     /// menu and the diagnostics grid so both surfaces read identically (#88). The
-    /// order is the natural escalation Off → Forward → Serve, with the grace variant
-    /// last.
+    /// order escalates: do nothing, then serve, with the grace variant last.
     /// </summary>
     public static class OnDetectionPolicyLabel
     {
@@ -12,7 +11,6 @@ namespace PBIPortWrapper.Models
         public static readonly OnDetectionPolicy[] Order =
         {
             OnDetectionPolicy.DoNothing,
-            OnDetectionPolicy.Forward,
             OnDetectionPolicy.ServeImmediately,
             OnDetectionPolicy.ServeAfterGrace
         };
@@ -21,7 +19,6 @@ namespace PBIPortWrapper.Models
         {
             switch (policy)
             {
-                case OnDetectionPolicy.Forward: return "Forward";
                 case OnDetectionPolicy.ServeImmediately: return "Serve";
                 case OnDetectionPolicy.ServeAfterGrace: return "Serve after grace period";
                 default: return "Do nothing";
