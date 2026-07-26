@@ -6,6 +6,12 @@ namespace PBIPortWrapper.Services
     /// Grid-independent validation for stable database aliases. Single source of
     /// the name rules; DatabaseRenameService validates through these methods before
     /// touching the instance.
+    ///
+    /// An alias is also the URL path a client addresses the model on (#136), so the
+    /// permitted set must stay URL-path-safe. It already is: every character below is
+    /// unreserved in a path except the space, which clients percent-encode as
+    /// <c>%20</c>. Widening this set is what would break addressing — a name
+    /// containing <c>/</c>, <c>?</c> or <c>#</c> could not be written as a path at all.
     /// </summary>
     public static class AliasValidator
     {

@@ -11,7 +11,7 @@ namespace PBIPortWrapper.Services
     /// </summary>
     public readonly struct LifecycleContext
     {
-        /// <summary>A serve profile (PortMappingRule) exists for this model.</summary>
+        /// <summary>A serve profile (ModelRule) exists for this model.</summary>
         public bool IsKnownModel { get; }
 
         /// <summary>The profile's OnDetection policy (only meaningful when known).</summary>
@@ -82,12 +82,13 @@ namespace PBIPortWrapper.Services
     /// </summary>
     public static class ServeLifecycleMachine
     {
-        /// <summary>A model can be served only with a usable alias and a valid fixed port.</summary>
-        public static bool IsServable(PortMappingRule rule) =>
-            rule != null
-            && !string.IsNullOrWhiteSpace(rule.StableAlias)
-            && rule.FixedPort >= 1024
-            && rule.FixedPort <= 65535;
+        /// <summary>
+        /// A model can be served once it has a usable alias. It no longer needs a port:
+        /// serving renames the database, and the XMLA endpoint addresses it by that
+        /// name on the engine's own port (#126). The alias is the whole requirement.
+        /// </summary>
+        public static bool IsServable(ModelRule rule) =>
+            rule != null && !string.IsNullOrWhiteSpace(rule.StableAlias);
 
         public static ServeTransition Decide(ServeLifecycleState state, ServeTrigger trigger, LifecycleContext ctx)
         {
@@ -109,10 +110,23 @@ namespace PBIPortWrapper.Services
                     // Unknown model: never rename anything; just offer to host it once.
                     if (!ctx.IsKnownModel)
                         return ServeTransition.To(ServeLifecycleState.Off, ServeCommand.NotifyNewModel);
-                    // Stand down if the user suppressed it (#96), recovery owns it (#102),
-                    // or it simply can't be served (no alias / bad port).
-                    if (ctx.IsSuppressed || ctx.HasRecoveryRecord || !ctx.IsServable)
+                    // Stand down if the user suppressed it (#96) or recovery owns it (#102).
+                    if (ctx.IsSuppressed || ctx.HasRecoveryRecord)
                         return ServeTransition.Stay(ServeLifecycleState.Off);
+                    // The model can't be served (no alias / bad port): advisory for serve
+                    // policies so the user knows why nothing happened (#114).
+                    if (!ctx.IsServable)
+                    {
+                        switch (ctx.Policy)
+                        {
+                            case OnDetectionPolicy.ServeImmediately:
+                            case OnDetectionPolicy.ServeAfterGrace:
+                                return ServeTransition.To(ServeLifecycleState.Off,
+                                    ServeCommand.NotifyNotServable);
+                            default:
+                                return ServeTransition.Stay(ServeLifecycleState.Off);
+                        }
+                    }
                     switch (ctx.Policy)
                     {
                         case OnDetectionPolicy.ServeImmediately:

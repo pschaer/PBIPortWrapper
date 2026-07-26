@@ -2,6 +2,75 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.8.0] - 2026-07-26
+
+The release where a model stops being addressed by a *port* and starts being
+addressed by its *name*.
+
+### Added
+- **One XMLA-over-HTTP endpoint for every served model** - each served model
+  answers on its own path of a single port
+  (`http://your-pc:55555/Sales`), so one address, one firewall rule and one
+  authentication setting cover all of them. A path is one server holding one
+  engine, which is what makes XMLA sessions work natively across several open
+  models (#77, #122, #123, #136)
+- **Access from other machines and other Windows users.** Power BI Desktop's
+  engine only ever accepts its owner over local TCP; the wrapper now owns
+  authentication on the remote leg and talks to the engine as itself. This is
+  the gap port forwarding could never close (#77)
+- **Password sign-in** (default), Windows sign-in and no-authentication modes.
+  Password sign-in verifies credentials against a real Windows account on the
+  host, so it works on a workgroup - the common case (#122, #140)
+- **Endpoint settings in the tray and the dashboard** - enable, port, hostname
+  override, authentication, status and restart, editable from either surface
+  and always in agreement (#125)
+- **Copy endpoint URL** per served model, and `.odc` files that carry it (#126)
+
+### Changed
+- **The alias replaced the fixed port.** The grid's *Fixed Port* column is now
+  an editable **Alias**; the *Network* column is gone (reachability is one
+  endpoint-wide setting); the *Action* cell is a direct **Serve** / **Stop**
+  button. A model needs a name, not a port (#126)
+- **The two states are Off and Serve.** *Forward* is gone as a state, an action
+  and an on-detection policy (#126, #127)
+- `config.json` calls the model list **`Models`** instead of `PortMappings`, and
+  the per-model `FixedPort` / `AllowNetworkAccess` fields are gone. Existing
+  files load unchanged and keep their aliases and policies (#130)
+- Endpoint log noise dropped to Debug; failures still log at Warning and above
+  (#141)
+
+### Removed
+- **TCP port forwarding**, and with it the proxy, port assignment and
+  validation, the *Set Port* UI, per-model network access, the Active
+  connections column and the row-details connections panel. A forwarded port
+  gave no stable database name and only ever worked for the same Windows user
+  on the same machine - everything it did, the endpoint does better (#126)
+
+### Fixed
+- **HTTP Basic accepted any password.** `HttpListener` decodes the credential
+  header but does not verify it, which was misread as validation: a nonexistent
+  user with an invented password was admitted exactly like a real one. The
+  password is now checked against Windows directly (#140)
+- Serving no longer fails, or rolls back a completed rename, because a TCP port
+  happened to be busy - it binds nothing at all (#126)
+- Row expansion crashed after the connections panel was removed (#126)
+- Endpoint status no longer claims "LAN" when it means every interface, and
+  names the exception - `this machine only` - instead (#142)
+- The "serving" toast offered to copy the connection string and copied the bare
+  alias; it now copies the real connection string, and says so plainly when the
+  endpoint is off and there is nothing to copy
+- The row details panel dropped the *Serve Alias* editor (the alias is a grid
+  column since #126) and a `Serving as 'X' on port 0` leftover, and its
+  connection actions now match the tray's exactly, `.odc` included
+
+### Known limitations
+- The endpoint has **no TLS**: password sign-in is base64 on the wire, and
+  queries and results travel in the clear. Trusted LAN only - see
+  KNOWN_LIMITATIONS.md §3. HTTPS is tracked as #132
+- Remote access needs a one-time `netsh http add urlacl` and a firewall rule;
+  without the reservation the endpoint silently serves localhost only. The tray
+  detects this and offers the command - see KNOWN_LIMITATIONS.md §4
+
 ## [0.7.1] - 2026-07-25
 
 ### Added

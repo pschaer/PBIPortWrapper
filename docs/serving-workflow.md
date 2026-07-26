@@ -1,4 +1,10 @@
-# Serving Workflow — v1.0 Design
+# Serving Workflow — Design
+
+> **Historical on vocabulary.** Written in the v0.5 era, so it discusses port
+> forwarding as a live mode. Forwarding was retired in v0.8 (#126) and the states are
+> now only Off and Serve. The serve-session mechanics it describes — rename at the
+> source, session lifecycle, crash recovery — are current, and experiment E1 is the
+> reason the XMLA endpoint exists.
 
 Status: **implemented in v0.5.0 (2026-07-19)** — serve profiles (#56), session
 lifecycle (#57), crash recovery (#58), Serve/Stop UI + dirty probe (#59).

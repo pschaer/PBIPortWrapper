@@ -9,7 +9,9 @@ namespace PBIPortWrapper.Presenters
     /// </summary>
     public interface IServeToasts
     {
-        void ServingReady(string model, string connection);
+        /// <summary>The model is serving under <paramref name="alias"/>; the
+        /// implementation resolves the connection details it offers to copy.</summary>
+        void ServingReady(string model, string alias);
         void GracePending(string model, int seconds, Action onCancel);
         void NewModel(string model, Action onSetUp);
         void ServeFailed(string model, string message);

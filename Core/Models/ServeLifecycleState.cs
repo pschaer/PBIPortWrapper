@@ -102,6 +102,9 @@ namespace PBIPortWrapper.Models
         ResumeServe = 9,
 
         /// <summary>Restore the original database name from a recovery record and clear it.</summary>
-        RestoreName = 10
+        RestoreName = 10,
+
+        /// <summary>Advisory: the policy wants to serve but the model lacks a usable alias or valid port (#114).</summary>
+        NotifyNotServable = 11
     }
 }

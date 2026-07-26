@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using PBIPortWrapper.Models;
@@ -18,32 +18,31 @@ namespace PBIPortWrapper.Presenters
     {
         private readonly NotifyIcon _notifyIcon;
         private readonly ContextMenuStrip _menu;
-        private readonly ProxyManager _proxyManager;
         private readonly ServeSessionService _sessions;
-        private readonly ProxyPresenter _proxyPresenter;
         private readonly ServeActionHandler _serveHandler;
         private readonly ConfigService _configService;
+        private readonly XmlaEndpointCoordinator _endpoint;
+        private readonly EndpointMenuBuilder _endpointMenu;
         private readonly Action _showDashboard;
         private readonly Action _exit;
 
         public TrayMenuManager(
             NotifyIcon notifyIcon,
             ContextMenuStrip menu,
-            ProxyManager proxyManager,
             ServeSessionService sessions,
-            ProxyPresenter proxyPresenter,
             ServeActionHandler serveHandler,
             ConfigService configService,
+            XmlaEndpointCoordinator endpoint,
             Action showDashboard,
             Action exit)
         {
             _notifyIcon = notifyIcon;
             _menu = menu;
-            _proxyManager = proxyManager;
             _sessions = sessions;
-            _proxyPresenter = proxyPresenter;
             _serveHandler = serveHandler;
             _configService = configService;
+            _endpoint = endpoint;
+            _endpointMenu = new EndpointMenuBuilder(endpoint, configService);
             _showDashboard = showDashboard;
             _exit = exit;
         }
@@ -64,6 +63,9 @@ namespace PBIPortWrapper.Presenters
             }
 
             _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(_endpointMenu.Build());
+
+            _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(new ToolStripMenuItem("Open dashboard…", null, (s, e) => _showDashboard?.Invoke()));
             _menu.Items.Add(new ToolStripMenuItem("Exit", null, (s, e) => _exit?.Invoke()));
         }
@@ -71,19 +73,23 @@ namespace PBIPortWrapper.Presenters
         private ToolStripMenuItem BuildModelItem(PowerBIInstance instance)
         {
             var profile = _configService?.FindRule(instance.FileName);
-            bool hasPort = profile != null && profile.FixedPort > 0;
+            bool hasAlias = !string.IsNullOrWhiteSpace(profile?.StableAlias);
 
             bool serving = _sessions?.FindSession(instance.WorkspaceId) != null;
-            bool forwarding = hasPort && _proxyManager.IsRunning(profile.FixedPort);
-            var state = HostStateMachine.CurrentState(serving, forwarding);
+            var state = HostStateMachine.CurrentState(serving);
 
-            string port = hasPort ? $"  :{profile.FixedPort}" : "";
-            var item = new ToolStripMenuItem($"{instance.FileName}  —  {StateLabel(state)}{port}");
+            // The alias is the address now, so it is what the line shows — a port here
+            // would name something no client uses (#126).
+            string alias = hasAlias ? $"  ({profile.StableAlias})" : "";
+            var item = new ToolStripMenuItem($"{instance.FileName}  —  {StateLabel(state)}{alias}");
 
-            if (!hasPort)
+            if (!hasAlias)
             {
+                // Serving renames the database to the alias, so without one there is
+                // nothing to serve it as. This is the only precondition left.
                 item.DropDownItems.Add(new ToolStripMenuItem(
-                    "Set a fixed port in the dashboard first") { Enabled = false });
+                    "Set a stable name in the dashboard first") { Enabled = false });
+                item.DropDownItems.Add(BuildPolicyMenu(instance, profile));
                 return item;
             }
 
@@ -91,61 +97,43 @@ namespace PBIPortWrapper.Presenters
                 item.DropDownItems.Add(BuildActionItem(instance, profile, action));
 
             item.DropDownItems.Add(BuildPolicyMenu(instance, profile));
-            item.DropDownItems.Add(new ToolStripSeparator());
-            item.DropDownItems.Add(BuildNetworkItem(instance, profile));
-            item.DropDownItems.Add(new ToolStripSeparator());
 
-            // .odc hand-off (#86): only meaningful with a stable catalog (alias) to
-            // point Excel at; forwarding without a rename has no stable catalog name.
-            if (!string.IsNullOrWhiteSpace(profile.StableAlias))
+            // Connection details describe a live address, so they are offered only
+            // while the model is actually served and the endpoint is up. At any other
+            // time they would hand out something that does not resolve.
+            if (serving && _endpoint?.Status?.Running == true)
+            {
+                item.DropDownItems.Add(new ToolStripSeparator());
+                item.DropDownItems.Add(new ToolStripMenuItem("Copy endpoint URL", null,
+                    (s, e) => EndpointMenuBuilder.CopyToClipboard(EndpointUrl(profile)))
+                {
+                    ToolTipText = "The address another machine uses for this model in Excel."
+                });
+                item.DropDownItems.Add(new ToolStripMenuItem("Copy connection string", null,
+                    (s, e) => EndpointMenuBuilder.CopyToClipboard(
+                        ConnectionStringBuilder.ForEndpoint(EndpointUrl(profile), profile.StableAlias))));
                 item.DropDownItems.Add(new ToolStripMenuItem("Save .odc…", null,
                     (s, e) => SaveOdc(instance, profile)));
-
-            item.DropDownItems.Add(new ToolStripMenuItem("Copy connection string", null,
-                (s, e) => CopyConnectionString(profile)));
+            }
 
             return item;
         }
 
-        private void SaveOdc(PowerBIInstance instance, PortMappingRule profile)
+        /// <summary>This model's address on the endpoint, as a client must write it.</summary>
+        private string EndpointUrl(ModelRule profile)
         {
-            string catalog = profile.StableAlias;
-            using (var dialog = new SaveFileDialog
-            {
-                Title = "Save Office Data Connection",
-                Filter = "Office Data Connection (*.odc)|*.odc",
-                DefaultExt = "odc",
-                AddExtension = true,
-                FileName = OdcFileBuilder.SuggestFileName(catalog)
-            })
-            {
-                if (dialog.ShowDialog() != DialogResult.OK) return;
-                try
-                {
-                    string content = OdcFileBuilder.Build(
-                        instance.FileName, ConnectionEndpoint.Host(profile), profile.FixedPort, catalog);
-                    System.IO.File.WriteAllText(dialog.FileName, content, new System.Text.UTF8Encoding(false));
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Could not save the .odc file:\n{ex.Message}",
-                        "Save .odc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            }
+            HttpBridgeConfig config = _configService?.Current?.HttpBridge;
+            EndpointStatus status = _endpoint?.Status;
+            if (config == null || status == null) return string.Empty;
+
+            return EndpointUrlBuilder.For(
+                ConnectionEndpoint.EndpointHost(config, status), status.Port, profile.StableAlias);
         }
 
-        private ToolStripMenuItem BuildNetworkItem(PowerBIInstance instance, PortMappingRule profile)
-        {
-            return new ToolStripMenuItem("Allow network access", null,
-                (s, e) => _configService?.SetNetwork(instance.FileName, !profile.AllowNetworkAccess))
-            {
-                Checked = profile.AllowNetworkAccess,
-                ToolTipText = "Expose on the LAN (same Windows user only). Allow the port through the firewall. " +
-                              "Takes effect the next time the proxy starts."
-            };
-        }
+        private void SaveOdc(PowerBIInstance instance, ModelRule profile) =>
+            OdcSaveAction.Save(instance.FileName, EndpointUrl(profile), profile.StableAlias);
 
-        private ToolStripMenuItem BuildPolicyMenu(PowerBIInstance instance, PortMappingRule profile)
+        private ToolStripMenuItem BuildPolicyMenu(PowerBIInstance instance, ModelRule profile)
         {
             var menu = new ToolStripMenuItem("On detection");
             foreach (var policy in OnDetectionPolicyLabel.Order)
@@ -154,13 +142,13 @@ namespace PBIPortWrapper.Presenters
                 menu.DropDownItems.Add(new ToolStripMenuItem(OnDetectionPolicyLabel.For(policy), null,
                     (s, e) => _configService?.SetOnDetection(instance.FileName, captured))
                 {
-                    Checked = profile.OnDetection == policy
+                    Checked = profile?.OnDetection == policy
                 });
             }
             return menu;
         }
 
-        private ToolStripMenuItem BuildActionItem(PowerBIInstance instance, PortMappingRule profile, HostAction action)
+        private ToolStripMenuItem BuildActionItem(PowerBIInstance instance, ModelRule profile, HostAction action)
         {
             string label = HostActionLabel.For(action);
             switch (action)
@@ -168,25 +156,12 @@ namespace PBIPortWrapper.Presenters
                 case HostAction.Serve:
                     return new ToolStripMenuItem(label, null,
                         async (s, e) => await _serveHandler.HandleServeAsync(instance));
-                case HostAction.StopServing:
-                    return new ToolStripMenuItem(label, null,
-                        async (s, e) => await _serveHandler.HandleStopServingAsync(instance.WorkspaceId));
-                case HostAction.Forward:
-                    return new ToolStripMenuItem(label, null,
-                        async (s, e) => await _proxyPresenter.StartProxyAsync(
-                            instance, profile.FixedPort, profile.AllowNetworkAccess));
                 case HostAction.Stop:
                     return new ToolStripMenuItem(label, null,
-                        (s, e) => _proxyPresenter.StopProxy(profile.FixedPort, instance.WorkspaceId));
+                        async (s, e) => await _serveHandler.HandleStopServingAsync(instance.WorkspaceId));
                 default:
                     return new ToolStripMenuItem(label) { Enabled = false };
             }
-        }
-
-        private static void CopyConnectionString(PortMappingRule profile)
-        {
-            try { Clipboard.SetText(ConnectionEndpoint.For(profile)); }
-            catch { /* clipboard can transiently fail; ignore */ }
         }
 
         private static string StateLabel(HostState state)
@@ -194,7 +169,6 @@ namespace PBIPortWrapper.Presenters
             switch (state)
             {
                 case HostState.Serve: return "Serving";
-                case HostState.Forward: return "Forwarding";
                 default: return "Off";
             }
         }

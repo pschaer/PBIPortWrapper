@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using PBIPortWrapper.Models;
 using Xunit;
 
@@ -12,22 +12,18 @@ namespace PBIPortWrapper.Core.Tests
             var config = new ProxyConfiguration();
 
             Assert.False(config.MinimizeToTray);
-            Assert.NotNull(config.PortMappings);
-            Assert.Empty(config.PortMappings);
+            Assert.NotNull(config.Models);
+            Assert.Empty(config.Models);
         }
 
         [Fact]
-        public void JsonRoundTrip_PreservesPortMappings()
+        public void JsonRoundTrip_PreservesModels()
         {
             var config = new ProxyConfiguration
             {
-                PortMappings =
+                Models =
                 {
-                    new PortMappingRule("Sales.pbix", 55555, autoConnect: true, allowNetworkAccess: false)
-                    {
-                        StableAlias = "Sales",
-                        AutoServe = true
-                    }
+                    new ModelRule("Sales.pbix", "Sales") { AutoConnect = true, AutoServe = true }
                 }
             };
 
@@ -35,11 +31,9 @@ namespace PBIPortWrapper.Core.Tests
             var restored = JsonConvert.DeserializeObject<ProxyConfiguration>(json);
 
             Assert.NotNull(restored);
-            var rule = Assert.Single(restored!.PortMappings);
+            var rule = Assert.Single(restored!.Models);
             Assert.Equal("Sales.pbix", rule.ModelNamePattern);
-            Assert.Equal(55555, rule.FixedPort);
             Assert.True(rule.AutoConnect);
-            Assert.False(rule.AllowNetworkAccess);
             Assert.Equal("Sales", rule.StableAlias);
             Assert.True(rule.AutoServe);
         }
@@ -66,7 +60,7 @@ namespace PBIPortWrapper.Core.Tests
             var restored = JsonConvert.DeserializeObject<ProxyConfiguration>(oldJson);
 
             Assert.NotNull(restored);
-            var rule = Assert.Single(restored!.PortMappings);
+            var rule = Assert.Single(restored!.Models);
             Assert.Equal("Sales", rule.StableAlias);
             Assert.False(rule.AutoServe); // absent in old configs -> off
         }
@@ -74,7 +68,7 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void Serialize_WritesStableAliasAsRenamedDatabaseName()
         {
-            var rule = new PortMappingRule { StableAlias = "Sales" };
+            var rule = new ModelRule { StableAlias = "Sales" };
 
             var json = JsonConvert.SerializeObject(rule);
 
@@ -83,12 +77,52 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
+        public void Deserialize_PreV08Config_LoadsPortMappingsIntoModels()
+        {
+            // v0.8 renamed the property to "Models" without bumping the schema version,
+            // so nothing migrates this file - the legacy landing spot is the only thing
+            // standing between an upgrader and losing every alias they set (#130).
+            var oldJson = @"{
+                ""ConfigVersion"": 2,
+                ""PortMappings"": [
+                    {
+                        ""ModelNamePattern"": ""Sample01"",
+                        ""RenamedDatabaseName"": ""Sales"",
+                        ""OnDetection"": 3
+                    }
+                ]
+            }";
+
+            var restored = JsonConvert.DeserializeObject<ProxyConfiguration>(oldJson);
+
+            Assert.NotNull(restored);
+            var rule = Assert.Single(restored!.Models);
+            Assert.Equal("Sample01", rule.ModelNamePattern);
+            Assert.Equal("Sales", rule.StableAlias);
+            Assert.Equal(OnDetectionPolicy.ServeImmediately, rule.OnDetection);
+        }
+
+        [Fact]
+        public void Serialize_WritesModelsAndDropsTheLegacyName()
+        {
+            var config = new ProxyConfiguration
+            {
+                Models = { new ModelRule("Sample01", "Sales") }
+            };
+
+            var json = JsonConvert.SerializeObject(config);
+
+            Assert.Contains("\"Models\"", json);
+            Assert.DoesNotContain("PortMappings", json);
+        }
+
+        [Fact]
         public void Deserialize_EmptyObject_AppliesDefaults()
         {
             var restored = JsonConvert.DeserializeObject<ProxyConfiguration>("{}");
 
             Assert.NotNull(restored);
-            Assert.NotNull(restored!.PortMappings);
+            Assert.NotNull(restored!.Models);
         }
     }
 }

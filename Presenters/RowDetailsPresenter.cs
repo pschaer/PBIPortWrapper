@@ -8,20 +8,20 @@ namespace PBIPortWrapper.Presenters
     public class RowDetailsPresenter
     {
         private PowerBIInstance _instance;
-        private readonly ProxyManager _proxyManager;
         private readonly ConfigService _configService;
         private readonly ServeSessionService _serveSessions;
+        private readonly Func<string, string> _endpointUrlForAlias;
 
         public RowDetailsPresenter(
             PowerBIInstance instance,
-            ProxyManager proxyManager,
             ConfigService configService,
-            ServeSessionService serveSessions)
+            ServeSessionService serveSessions,
+            Func<string, string> endpointUrlForAlias = null)
         {
             _instance = instance;
-            _proxyManager = proxyManager;
             _configService = configService;
             _serveSessions = serveSessions;
+            _endpointUrlForAlias = endpointUrlForAlias ?? (_ => string.Empty);
         }
 
         /// <summary>
@@ -40,36 +40,23 @@ namespace PBIPortWrapper.Presenters
             string tooltip = $"Workspace: {_instance.FilePath}";
 
             var rule = _configService.FindRule(_instance.FileName);
-
-            int fixedPort = rule?.FixedPort ?? 0;
-            string connString = fixedPort > 0 ? $"localhost:{fixedPort}" : string.Empty;
             string alias = rule?.StableAlias ?? string.Empty;
+
+            // The model's live address, or empty when it is not currently reachable.
+            string connString = _endpointUrlForAlias(alias);
 
             return new DetailsDisplayData
             {
                 ModelName = _instance.FileName,
                 PbiPort = _instance.Port,
-                FixedPort = fixedPort,
                 ConnectionString = connString,
                 DatabaseOriginalName = _instance.DatabaseName,
                 DatabaseAlias = alias,
                 IsServing = _serveSessions.FindSession(_instance.WorkspaceId) != null,
                 FullTitle = fullTitle,
+                WorkspacePath = _instance.FilePath,
                 TooltipText = tooltip
             };
-        }
-
-        public IReadOnlyList<ConnectionInfo> GetActiveConnections(int fixedPort)
-        {
-            if (fixedPort <= 0) return new List<ConnectionInfo>();
-            return _proxyManager.GetConnectionDetails(fixedPort);
-        }
-
-        public void SaveDatabaseAlias(string newName)
-        {
-            // Single-writer rule: all config mutations go through ConfigService so the
-            // grid's cached Current and this panel can never clobber each other (#62).
-            _configService.SetStableAlias(_instance.FileName, newName);
         }
     }
 }

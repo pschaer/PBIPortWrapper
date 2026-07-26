@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -14,19 +14,21 @@ namespace PBIPortWrapper.Presenters
     /// </summary>
     public static class ConnectionEndpoint
     {
-        public static string For(PortMappingRule rule)
-        {
-            if (rule == null || rule.FixedPort <= 0) return string.Empty;
-            return ConnectionStringBuilder.DataSource(Host(rule), rule.FixedPort);
-        }
 
+        
         /// <summary>
-        /// The host external tools should target for this model: <c>localhost</c>,
-        /// or the LAN address when network access is allowed. Shared so the copy
-        /// string, ready toasts and the saved .odc all point at the same host.
+        /// The host to publish in XMLA endpoint URLs (#125): the configured host name
+        /// when the user set one, otherwise the LAN address while the endpoint is
+        /// actually reachable from other machines, otherwise localhost.
+        ///
+        /// The fallback matters: handing out a LAN address while the listener fell back
+        /// to localhost produces a URL that simply never connects.
         /// </summary>
-        public static string Host(PortMappingRule rule) =>
-            rule != null && rule.AllowNetworkAccess ? ResolveLocalAddress() : "localhost";
+        public static string EndpointHost(HttpBridgeConfig config, EndpointStatus status)
+        {
+            if (!string.IsNullOrWhiteSpace(config?.Hostname)) return config.Hostname.Trim();
+            return status != null && status.IsLanReachable ? ResolveLocalAddress() : "localhost";
+        }
 
         /// <summary>Best-effort local IPv4 for LAN connection strings.</summary>
         private static string ResolveLocalAddress()

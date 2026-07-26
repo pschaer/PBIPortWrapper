@@ -1,5 +1,9 @@
 # Tray-first Workflow — v0.7 Design
 
+> **Historical on vocabulary.** Shipped in v0.7; the Forward state it describes was
+> retired in v0.8 (#126), leaving Off and Serve. Everything else — the persona,
+> on-detection policies, tray-as-primary — is current.
+
 Status: **design** (2026-07-24). Derived from a workflow-from-scratch discovery
 session. This redesigns the *workflow*, not the framework (WinForms stays) — the
 tracking issue is #47. It builds on the serve-session mechanics already shipped in

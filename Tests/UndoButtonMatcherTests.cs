@@ -42,5 +42,44 @@ namespace PBIPortWrapper.Core.Tests
         {
             Assert.True(UndoButtonMatcher.IsUndo("   Undo"));
         }
+
+        [Theory]
+        [InlineData("undo")]
+        [InlineData("UNDO")]   // AutomationId compared case-insensitively
+        [InlineData(" undo ")] // trimmed
+        public void IsUndoAutomationId_matches_the_stable_id(string id)
+        {
+            Assert.True(UndoButtonMatcher.IsUndoAutomationId(id));
+        }
+
+        [Theory]
+        [InlineData("redo")]
+        [InlineData("undoButton")] // must be exact, not a prefix
+        [InlineData("")]
+        [InlineData(null)]
+        public void IsUndoAutomationId_rejects_other_ids(string id)
+        {
+            Assert.False(UndoButtonMatcher.IsUndoAutomationId(id));
+        }
+
+        [Fact]
+        public void Matches_uses_the_automationid_even_when_the_label_is_unrecognized()
+        {
+            // A Desktop language none of the curated labels cover: the id still wins.
+            Assert.True(UndoButtonMatcher.Matches("undo", "visszavonás")); // Hungarian, not in the label set
+        }
+
+        [Fact]
+        public void Matches_falls_back_to_the_localized_label_when_id_is_absent()
+        {
+            Assert.True(UndoButtonMatcher.Matches(null, "Rückgängig"));
+            Assert.True(UndoButtonMatcher.Matches("", "Undo (Ctrl+Z)"));
+        }
+
+        [Fact]
+        public void Matches_rejects_a_non_undo_control()
+        {
+            Assert.False(UndoButtonMatcher.Matches("redo", "Redo"));
+        }
     }
 }

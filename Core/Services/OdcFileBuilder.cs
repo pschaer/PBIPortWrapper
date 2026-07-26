@@ -10,9 +10,9 @@ namespace PBIPortWrapper.Services
     /// docs/tray-workflow.md). Pure string building; the caller supplies the host,
     /// port and stable catalog and owns writing the file to disk.
     ///
-    /// The connection string comes from <see cref="ConnectionStringBuilder.Full"/>
-    /// so the .odc and "Copy connection string" stay in lockstep. Because the alias
-    /// (catalog) and port are stable across Desktop restarts, a saved .odc keeps
+    /// The connection string comes from <see cref="ConnectionStringBuilder.ForEndpoint"/>
+    /// so the .odc and the copy buttons stay in lockstep. Because the alias and the
+    /// endpoint's address are stable across Desktop restarts, a saved .odc keeps
     /// resolving — the core promise of serving.
     /// </summary>
     public static class OdcFileBuilder
@@ -25,13 +25,14 @@ namespace PBIPortWrapper.Services
 
         /// <summary>
         /// Builds the full .odc file content (an Office-recognized HTML document) for
-        /// a PivotTable against <paramref name="catalog"/> on <paramref name="host"/>:
-        /// <paramref name="port"/>.
+        /// a PivotTable against <paramref name="catalog"/> at
+        /// <paramref name="endpointUrl"/> — the model's own URL on the XMLA endpoint
+        /// (#126), which is now the only way a client reaches it.
         /// </summary>
-        public static string Build(string modelName, string host, int port, string catalog, string cube = DefaultCube)
+        public static string Build(string modelName, string endpointUrl, string catalog, string cube = DefaultCube)
         {
             string title = string.IsNullOrWhiteSpace(modelName) ? catalog : modelName;
-            string connection = ConnectionStringBuilder.Full(host, port, catalog);
+            string connection = ConnectionStringBuilder.ForEndpoint(endpointUrl, catalog);
 
             string t = Escape(title);
             string cat = Escape(catalog);

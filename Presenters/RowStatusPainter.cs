@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
 using PBIPortWrapper.Models;
@@ -8,33 +8,30 @@ namespace PBIPortWrapper.Presenters
 {
     // FILE SIZE: MAX 250 lines - enforced by build target
     /// <summary>
-    /// Single decision point for a row's Status/Action/Serve/Active cells, shared
-    /// by the snapshot refresh (GridSyncHelper) and the proxy/serve event paths
-    /// (GridPresenter) so a serving row can never be repainted as plain "Running".
+    /// Single decision point for a row's Status and Action cells, shared by the
+    /// snapshot refresh (GridSyncHelper) and the serve event path (GridPresenter) so
+    /// the two can never disagree about what a row is doing.
     /// </summary>
     public class RowStatusPainter
     {
-        private readonly ProxyManager _proxyManager;
         private readonly Func<string, ServeSession> _sessionLookup; // by workspace id
-        private readonly Func<string, PortMappingRule> _ruleLookup; // by model name
+        private readonly Func<string, ModelRule> _ruleLookup; // by model name
         private readonly Action<DataGridViewRow, string, Color, string, bool> _setRowStatus;
         private readonly Action<string> _log;
 
         public RowStatusPainter(
-            ProxyManager proxyManager,
             Func<string, ServeSession> sessionLookup,
-            Func<string, PortMappingRule> ruleLookup,
+            Func<string, ModelRule> ruleLookup,
             Action<DataGridViewRow, string, Color, string, bool> setRowStatus,
             Action<string> log)
         {
-            _proxyManager = proxyManager;
             _sessionLookup = sessionLookup;
             _ruleLookup = ruleLookup;
             _setRowStatus = setRowStatus;
             _log = log;
         }
 
-        /// <summary>Repaints one main grid row from current proxy and serve state.</summary>
+        /// <summary>Repaints one main grid row from current serve state.</summary>
         public void Paint(DataGridViewRow row)
         {
             bool live = !string.IsNullOrEmpty(row.Cells["colPbiPort"].Value?.ToString());
@@ -53,60 +50,31 @@ namespace PBIPortWrapper.Presenters
             {
                 _setRowStatus(row, "Unsaved", Color.Gray, "", true);
                 row.Cells["colStatus"].ToolTipText = "Save the .pbix in Power BI Desktop to configure this instance.";
-                row.Cells["colActive"].Value = "";
                 return;
             }
 
+            // The Action cell names the one action available from this state and
+            // performs it on click (#126) — with a single action per state, a menu to
+            // reveal one item was friction for nothing.
             var workspaceId = row.Tag as string;
             var session = workspaceId != null ? _sessionLookup(workspaceId) : null;
             if (session != null)
             {
-                // Serving: the single Action menu offers Stop (restores the name).
-                _setRowStatus(row, "Serving", Color.MediumBlue, "Actions", true);
-                row.Cells["colActive"].Value = _proxyManager.GetActiveConnections(session.FixedPort);
+                _setRowStatus(row, "Serving", Color.MediumBlue, HostActionLabel.For(HostAction.Stop), true);
                 return;
             }
 
-            int port = 0;
-            if (row.Cells["colFixedPort"].Value != null)
-                int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out port);
-
-            bool running = port > 0 && _proxyManager.IsRunning(port);
-            if (running)
-            {
-                // #49: if Desktop restarted within one refresh window, the row was
-                // matched by file name and the proxy still forwards to the dead old
-                // workspace port. Stop it here; rows with Auto get restarted by
-                // ProcessAutoConnect in the same refresh pass, manual rows fall
-                // back to Ready.
-                int? targetPort = _proxyManager.GetTargetPort(port);
-                if (targetPort.HasValue && row.Cells["colPbiPort"].Value is int instancePort && targetPort.Value != instancePort)
-                {
-                    _proxyManager.StopProxy(port);
-                    _log($"Proxy {port} targeted stale port {targetPort.Value}; instance now on {instancePort}. Restarting.");
-                    running = false;
-                }
-            }
-
-            if (running)
-            {
-                // Forwarding: the Action menu offers Serve and Stop.
-                _setRowStatus(row, "Running", Color.Green, "Actions", true);
-                row.Cells["colActive"].Value = _proxyManager.GetActiveConnections(port);
-            }
-            else
-            {
-                // Off: the Action menu offers Forward and Serve (once a port is set).
-                _setRowStatus(row, "Ready", Color.Black, port > 0 ? "Actions" : "Set Port", false);
-                row.Cells["colActive"].Value = "";
-            }
+            // Off. Serving needs a stable name, so a model without one is pointed at
+            // where that is set instead of being offered an action that would fail.
+            bool hasAlias = !string.IsNullOrWhiteSpace(_ruleLookup(row.Cells["colModelName"].Value?.ToString())?.StableAlias);
+            _setRowStatus(row, "Ready", Color.Black,
+                hasAlias ? HostActionLabel.For(HostAction.Serve) : "Set name", false);
         }
 
         public void PaintOffline(DataGridViewRow row)
         {
             ProjectPolicy(row);
             _setRowStatus(row, "Offline", Color.Gray, "Remove", false);
-            row.Cells["colActive"].Value = "";
         }
 
         /// <summary>
@@ -132,9 +100,14 @@ namespace PBIPortWrapper.Presenters
                 if (policyCell.Value?.ToString() != label) policyCell.Value = label;
             }
 
-            var networkCell = row.Cells["colNetwork"];
-            if (!Equals(networkCell.Value, rule.AllowNetworkAccess))
-                networkCell.Value = rule.AllowNetworkAccess;
+            // The alias is user-editable in the grid, so leave it alone while it is
+            // being typed - projecting over a half-typed name would fight the user.
+            var aliasCell = row.Cells["colAlias"];
+            if (!(grid != null && grid.IsCurrentCellInEditMode && grid.CurrentCell == aliasCell)
+                && aliasCell.Value?.ToString() != rule.StableAlias)
+            {
+                aliasCell.Value = rule.StableAlias;
+            }
         }
     }
 }

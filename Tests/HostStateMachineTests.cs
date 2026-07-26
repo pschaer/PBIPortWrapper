@@ -6,15 +6,16 @@ using Xunit;
 namespace PBIPortWrapper.Core.Tests
 {
     /// <summary>
-    /// Covers the pure host-state logic (v0.7, #84): detection-policy → target
-    /// state, grace-period flag, action → state transitions, the actions offered
-    /// per state, and the legacy-boolean → policy mapping used by migration.
+    /// Covers the pure host-state logic (#84): detection-policy → target state, the
+    /// grace-period flag, action → state transitions, the actions offered per state,
+    /// and the legacy-boolean → policy mapping used by migration.
+    ///
+    /// The axis is Off ↔ Serve since #126 retired forwarding.
     /// </summary>
     public sealed class HostStateMachineTests
     {
         [Theory]
         [InlineData(OnDetectionPolicy.DoNothing, HostState.Off)]
-        [InlineData(OnDetectionPolicy.Forward, HostState.Forward)]
         [InlineData(OnDetectionPolicy.ServeAfterGrace, HostState.Serve)]
         [InlineData(OnDetectionPolicy.ServeImmediately, HostState.Serve)]
         public void TargetOnDetection_maps_policy_to_state(OnDetectionPolicy policy, HostState expected)
@@ -25,20 +26,30 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void TargetOnDetection_null_rule_is_Off()
         {
-            Assert.Equal(HostState.Off, HostStateMachine.TargetOnDetection((PortMappingRule)null));
+            Assert.Equal(HostState.Off, HostStateMachine.TargetOnDetection((ModelRule)null));
         }
 
         [Fact]
         public void TargetOnDetection_rule_uses_its_policy()
         {
-            var rule = new PortMappingRule { OnDetection = OnDetectionPolicy.ServeImmediately };
+            var rule = new ModelRule { OnDetection = OnDetectionPolicy.ServeImmediately };
             Assert.Equal(HostState.Serve, HostStateMachine.TargetOnDetection(rule));
+        }
+
+        [Fact]
+        public void TargetOnDetection_of_a_retired_policy_value_is_Off()
+        {
+            // A config that still carries the retired Forward value (1) reaches this
+            // before migration has necessarily run. It must land somewhere harmless
+            // rather than fall through to serving.
+            var rule = new ModelRule { OnDetection = (OnDetectionPolicy)1 };
+
+            Assert.Equal(HostState.Off, HostStateMachine.TargetOnDetection(rule));
         }
 
         [Theory]
         [InlineData(OnDetectionPolicy.ServeAfterGrace, true)]
         [InlineData(OnDetectionPolicy.ServeImmediately, false)]
-        [InlineData(OnDetectionPolicy.Forward, false)]
         [InlineData(OnDetectionPolicy.DoNothing, false)]
         public void UsesGracePeriod_only_for_grace_policy(OnDetectionPolicy policy, bool expected)
         {
@@ -46,28 +57,16 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Theory]
-        [InlineData(HostState.Off, HostAction.Forward, HostState.Forward)]
         [InlineData(HostState.Off, HostAction.Serve, HostState.Serve)]
-        [InlineData(HostState.Forward, HostAction.Serve, HostState.Serve)]
-        [InlineData(HostState.Forward, HostAction.Stop, HostState.Off)]
-        [InlineData(HostState.Serve, HostAction.StopServing, HostState.Forward)]
         [InlineData(HostState.Serve, HostAction.Stop, HostState.Off)]
         public void Apply_transitions_to_expected_state(HostState from, HostAction action, HostState expected)
         {
             Assert.Equal(expected, HostStateMachine.Apply(from, action));
         }
 
-        [Fact]
-        public void StopServing_drops_to_Forward_not_Off()
-        {
-            // Stopping a serve session to edit keeps the port forwarded.
-            Assert.Equal(HostState.Forward, HostStateMachine.Apply(HostState.Serve, HostAction.StopServing));
-        }
-
         [Theory]
-        [InlineData(HostState.Off, new[] { HostAction.Forward, HostAction.Serve })]
-        [InlineData(HostState.Forward, new[] { HostAction.Serve, HostAction.Stop })]
-        [InlineData(HostState.Serve, new[] { HostAction.StopServing })]
+        [InlineData(HostState.Off, new[] { HostAction.Serve })]
+        [InlineData(HostState.Serve, new[] { HostAction.Stop })]
         public void AvailableActions_offers_the_right_moves(HostState state, HostAction[] expected)
         {
             Assert.Equal(expected, HostStateMachine.AvailableActions(state).ToArray());
@@ -77,7 +76,7 @@ namespace PBIPortWrapper.Core.Tests
         public void AvailableActions_never_offers_the_current_state_as_a_move()
         {
             // No action should resolve back to the state it was offered from.
-            foreach (HostState state in new[] { HostState.Off, HostState.Forward, HostState.Serve })
+            foreach (HostState state in new[] { HostState.Off, HostState.Serve })
             {
                 foreach (var action in HostStateMachine.AvailableActions(state))
                     Assert.NotEqual(state, HostStateMachine.Apply(state, action));
@@ -85,23 +84,29 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Theory]
-        [InlineData(false, false, HostState.Off)]
-        [InlineData(false, true, HostState.Forward)]
-        [InlineData(true, false, HostState.Serve)]  // serving wins even if the forward flag lags
-        [InlineData(true, true, HostState.Serve)]
-        public void CurrentState_projects_live_service_state(bool serving, bool forwarding, HostState expected)
+        [InlineData(false, HostState.Off)]
+        [InlineData(true, HostState.Serve)]
+        public void CurrentState_projects_live_service_state(bool serving, HostState expected)
         {
-            Assert.Equal(expected, HostStateMachine.CurrentState(serving, forwarding));
+            Assert.Equal(expected, HostStateMachine.CurrentState(serving));
         }
 
         [Theory]
         [InlineData(false, false, OnDetectionPolicy.DoNothing)]
-        [InlineData(true, false, OnDetectionPolicy.Forward)]
         [InlineData(false, true, OnDetectionPolicy.ServeImmediately)]
         [InlineData(true, true, OnDetectionPolicy.ServeImmediately)] // AutoServe wins
         public void FromLegacy_maps_booleans_to_policy(bool autoConnect, bool autoServe, OnDetectionPolicy expected)
         {
             Assert.Equal(expected, HostStateMachine.FromLegacy(autoConnect, autoServe));
+        }
+
+        [Fact]
+        public void FromLegacy_does_not_promote_auto_forwarding_to_serving()
+        {
+            // AutoConnect meant "forward on detect". Forwarding is gone, and quietly
+            // upgrading it to serving would start renaming databases and blocking
+            // Desktop edits for someone who never asked for that (#126).
+            Assert.Equal(OnDetectionPolicy.DoNothing, HostStateMachine.FromLegacy(autoConnect: true, autoServe: false));
         }
     }
 }

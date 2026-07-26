@@ -89,9 +89,7 @@ namespace PBIPortWrapper.Presenters
         private async void Prompt(ServeRecoveryCandidate candidate)
         {
             var profile = _configService.FindRule(candidate.Instance.FileName);
-            bool canResume = profile != null
-                && !string.IsNullOrEmpty(profile.StableAlias)
-                && profile.FixedPort >= 1024 && profile.FixedPort <= 65535;
+            bool canResume = profile != null && !string.IsNullOrEmpty(profile.StableAlias);
 
             ServeResult result;
             if (canResume)
@@ -99,7 +97,7 @@ namespace PBIPortWrapper.Presenters
                 var choice = MessageBox.Show(
                     $"The wrapper closed while serving '{candidate.Record.Alias}' ({candidate.Instance.FileName}), " +
                     "and Power BI Desktop is still running with the renamed database.\n\n" +
-                    $"Yes – resume serving on port {profile.FixedPort}\n" +
+                    "Yes – resume serving\n" +
                     "No – restore the original database name\n" +
                     "Cancel – decide later",
                     "Serve session recovery", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);

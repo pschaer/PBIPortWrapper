@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.IO;
+using PBIPortWrapper.Models;
 using PBIPortWrapper.Services;
 using Xunit;
 
@@ -40,29 +41,9 @@ namespace PBIPortWrapper.Core.Tests
             _service.SetStableAlias("Sample01", "Sales");
 
             var restored = ReloadFromDisk();
-            var rule = Assert.Single(restored.Current.PortMappings);
+            var rule = Assert.Single(restored.Current.Models);
             Assert.Equal("Sample01", rule.ModelNamePattern);
             Assert.Equal("Sales", rule.StableAlias);
-        }
-
-        [Fact]
-        public void SetNetwork_CreatesRuleTogglesAndPreservesOtherFields()
-        {
-            _service.UpdateRule("Sample01", 55555, autoConnect: true, allowNetwork: false);
-
-            _service.SetNetwork("Sample01", true);
-
-            var rule = Assert.Single(ReloadFromDisk().Current.PortMappings);
-            Assert.True(rule.AllowNetworkAccess);
-            Assert.Equal(55555, rule.FixedPort);
-            Assert.True(rule.AutoConnect);
-        }
-
-        [Fact]
-        public void SetNetwork_RefusesUntitled()
-        {
-            _service.SetNetwork("Untitled", true);
-            Assert.Empty(_service.Current.PortMappings);
         }
 
         [Fact] // #87: the auto-start flag round-trips through config (registry side is StartupService's)
@@ -77,38 +58,34 @@ namespace PBIPortWrapper.Core.Tests
         [Fact]
         public void SetStableAlias_OnExistingRule_KeepsOtherFields()
         {
-            _service.UpdateRule("Sample01", 55555, autoConnect: true, allowNetwork: true);
+            _service.SetOnDetection("Sample01", OnDetectionPolicy.ServeImmediately);
 
             _service.SetStableAlias("Sample01", "Sales");
 
-            var rule = Assert.Single(ReloadFromDisk().Current.PortMappings);
-            Assert.Equal(55555, rule.FixedPort);
-            Assert.True(rule.AutoConnect);
-            Assert.True(rule.AllowNetworkAccess);
+            var rule = Assert.Single(ReloadFromDisk().Current.Models);
+            Assert.Equal(OnDetectionPolicy.ServeImmediately, rule.OnDetection);
             Assert.Equal("Sales", rule.StableAlias);
         }
 
         [Fact]
-        public void UpdateRule_AfterSetStableAlias_PreservesAlias()
+        public void SetOnDetection_AfterSetStableAlias_PreservesAlias()
         {
-            // Regression for #62: an alias saved by the rename panel was clobbered by
-            // the next grid toggle saving a stale cached config. With a single Current
-            // the toggle must preserve the alias.
-            _service.UpdateRule("Sample01", 55555, autoConnect: true, allowNetwork: false);
+            // Regression for #62: an alias saved by one surface was clobbered by the
+            // next toggle saving a stale cached config. With a single Current, the
+            // toggle must preserve the alias - now the only thing serving needs.
             _service.SetStableAlias("Sample01", "Sales");
 
-            _service.UpdateRule("Sample01", 55555, autoConnect: false, allowNetwork: true);
+            _service.SetOnDetection("Sample01", OnDetectionPolicy.ServeAfterGrace);
 
-            var rule = Assert.Single(ReloadFromDisk().Current.PortMappings);
+            var rule = Assert.Single(ReloadFromDisk().Current.Models);
             Assert.Equal("Sales", rule.StableAlias);
-            Assert.False(rule.AutoConnect);
-            Assert.True(rule.AllowNetworkAccess);
+            Assert.Equal(OnDetectionPolicy.ServeAfterGrace, rule.OnDetection);
         }
 
         [Fact]
         public void FindRule_MatchesExactModelName()
         {
-            _service.UpdateRule("Sample01", 55555, autoConnect: false, allowNetwork: false);
+            _service.SetStableAlias("Sample01", "Sales");
 
             Assert.NotNull(_service.FindRule("Sample01"));
             Assert.Null(_service.FindRule("Sample"));
@@ -124,7 +101,7 @@ namespace PBIPortWrapper.Core.Tests
             _service.SetStableAlias("Untitled", "Sales");
             _service.SetStableAlias("untitled", "Sales");
 
-            Assert.Empty(ReloadFromDisk().Current.PortMappings);
+            Assert.Empty(ReloadFromDisk().Current.Models);
         }
 
         [Fact]
@@ -132,18 +109,16 @@ namespace PBIPortWrapper.Core.Tests
         {
             _service.SetStableAlias("Sample01", "Sales");
             _service.SetStableAlias("Sample01", "SalesV2");
-            _service.UpdateRule("Sample01", 55556, autoConnect: false, allowNetwork: false);
 
-            var rule = Assert.Single(ReloadFromDisk().Current.PortMappings);
+            var rule = Assert.Single(ReloadFromDisk().Current.Models);
             Assert.Equal("SalesV2", rule.StableAlias);
-            Assert.Equal(55556, rule.FixedPort);
         }
 
         [Fact]
         public void Load_MissingFile_YieldsDefaults()
         {
             Assert.NotNull(_service.Current);
-            Assert.Empty(_service.Current.PortMappings);
+            Assert.Empty(_service.Current.Models);
         }
     }
 }

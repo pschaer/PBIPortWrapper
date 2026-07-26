@@ -11,11 +11,19 @@ namespace PBIPortWrapper.Presenters
     public class TrayToastService : IServeToasts
     {
         private readonly NotifyIcon _icon;
+        private readonly Func<string, string> _connectionStringFor;
         private Action _onClick;
 
-        public TrayToastService(NotifyIcon icon)
+        /// <summary>
+        /// <paramref name="connectionStringFor"/> maps a served model's alias to the
+        /// connection string a client would use, or empty when the model is not
+        /// reachable (endpoint off). The toast offered to copy "the connection string"
+        /// and copied the bare alias until this was wired.
+        /// </summary>
+        public TrayToastService(NotifyIcon icon, Func<string, string> connectionStringFor = null)
         {
             _icon = icon;
+            _connectionStringFor = connectionStringFor ?? (_ => string.Empty);
             _icon.BalloonTipClicked += (s, e) =>
             {
                 var action = _onClick;
@@ -31,10 +39,23 @@ namespace PBIPortWrapper.Presenters
             _icon.ShowBalloonTip(8000, title, text, icon);
         }
 
-        public void ServingReady(string model, string connection) =>
+        public void ServingReady(string model, string alias)
+        {
+            string connectionString = _connectionStringFor(alias);
+
+            // Nothing to copy when the endpoint is off: the model is served but not
+            // reachable, so say that instead of offering a string that cannot connect.
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                Show("Serving " + model,
+                    $"Ready as '{alias}'. Turn the XMLA endpoint on to connect to it.");
+                return;
+            }
+
             Show("Serving " + model,
-                $"Ready at {connection}. Click to copy the connection string.",
-                () => { try { Clipboard.SetText(connection); } catch { } });
+                $"Ready as '{alias}'. Click to copy the connection string.",
+                () => { try { Clipboard.SetText(connectionString); } catch { } });
+        }
 
         public void GracePending(string model, int seconds, Action onCancel) =>
             Show(model,

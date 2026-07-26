@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -78,52 +78,6 @@ namespace PBIPortWrapper.Presenters
                 {
                     string filePath = toolTip.Substring(toolTip.IndexOf("Workspace: ") + 11).Trim();
                     Clipboard.SetText(filePath);
-                }
-            }
-        }
-
-        public void OnCopyConnectionStringClick(object sender, EventArgs e)
-        {
-            if (_dataGridView.SelectedRows.Count > 0)
-            {
-                var row = _dataGridView.SelectedRows[0];
-                int fixedPort = 0;
-                if (row.Cells["colFixedPort"].Value != null)
-                    int.TryParse(row.Cells["colFixedPort"].Value.ToString(), out fixedPort);
-
-                if (fixedPort > 0)
-                {
-                    bool allowNetwork = Convert.ToBoolean(row.Cells["colNetwork"].Value);
-                    string connectionString = $"localhost:{fixedPort}";
-
-                    if (allowNetwork)
-                    {
-                        try
-                        {
-                            using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0))
-                            {
-                                socket.Connect("8.8.8.8", 65530);
-                                IPEndPoint endPoint = socket.LocalEndPoint as IPEndPoint;
-                                connectionString = $"{endPoint.Address}:{fixedPort}";
-                            }
-                        }
-                        catch
-                        {
-                            try
-                            {
-                                string hostName = Dns.GetHostName();
-                                var ipEntry = Dns.GetHostEntry(hostName);
-                                var ip = ipEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork);
-                                if (ip != null)
-                                {
-                                    connectionString = $"{ip}:{fixedPort}";
-                                }
-                            }
-                            catch { }
-                        }
-                    }
-
-                    Clipboard.SetText(connectionString);
                 }
             }
         }
