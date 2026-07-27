@@ -34,7 +34,8 @@ namespace PBIPortWrapper.Presenters
             ConfigService configService,
             XmlaEndpointCoordinator endpoint,
             Action showDashboard,
-            Action exit)
+            Action exit,
+            Func<string> accessLogPath = null)
         {
             _notifyIcon = notifyIcon;
             _menu = menu;
@@ -42,7 +43,7 @@ namespace PBIPortWrapper.Presenters
             _serveHandler = serveHandler;
             _configService = configService;
             _endpoint = endpoint;
-            _endpointMenu = new EndpointMenuBuilder(endpoint, configService);
+            _endpointMenu = new EndpointMenuBuilder(endpoint, configService, accessLogPath);
             _showDashboard = showDashboard;
             _exit = exit;
         }
@@ -97,6 +98,7 @@ namespace PBIPortWrapper.Presenters
                 item.DropDownItems.Add(BuildActionItem(instance, profile, action));
 
             item.DropDownItems.Add(BuildPolicyMenu(instance, profile));
+            item.DropDownItems.Add(BuildReadOnlyItem(instance, profile));
 
             // Connection details describe a live address, so they are offered only
             // while the model is actually served and the endpoint is up. At any other
@@ -127,11 +129,29 @@ namespace PBIPortWrapper.Presenters
             if (config == null || status == null) return string.Empty;
 
             return EndpointUrlBuilder.For(
-                ConnectionEndpoint.EndpointHost(config, status), status.Port, profile.StableAlias);
+                ConnectionEndpoint.EndpointHost(config, status), status.Port, profile.StableAlias,
+                status.Https);
         }
 
         private void SaveOdc(PowerBIInstance instance, ModelRule profile) =>
             OdcSaveAction.Save(instance.FileName, EndpointUrl(profile), profile.StableAlias);
+
+        /// <summary>
+        /// The same value the grid's Read-only column edits (#129), through the same
+        /// granular setter — the two surfaces project one setting, so they cannot drift
+        /// apart the way the policy dropdown once did (#107).
+        /// </summary>
+        private ToolStripMenuItem BuildReadOnlyItem(PowerBIInstance instance, ModelRule profile)
+        {
+            bool on = profile?.ReadOnly ?? true;
+            return new ToolStripMenuItem("Read-only", null,
+                (s, e) => _configService?.SetReadOnly(instance.FileName, !on))
+            {
+                Checked = on,
+                ToolTipText = "Refuse XMLA commands that would change this model. " +
+                              "Clear it to allow write-back from a tool like Tabular Editor."
+            };
+        }
 
         private ToolStripMenuItem BuildPolicyMenu(PowerBIInstance instance, ModelRule profile)
         {

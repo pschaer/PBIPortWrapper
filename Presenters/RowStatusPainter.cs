@@ -100,6 +100,15 @@ namespace PBIPortWrapper.Presenters
                 if (policyCell.Value?.ToString() != label) policyCell.Value = label;
             }
 
+            // Read-only (#129) is editable from the tray too, so it projects here for
+            // the same reason the dropdown does. A checkbox commits on the click, so
+            // there is no half-finished edit to protect.
+            var readOnlyCell = row.Cells["colReadOnly"];
+            if (!(readOnlyCell.Value is bool current) || current != rule.ReadOnly)
+            {
+                readOnlyCell.Value = rule.ReadOnly;
+            }
+
             // The alias is user-editable in the grid, so leave it alone while it is
             // being typed - projecting over a half-typed name would fight the user.
             var aliasCell = row.Cells["colAlias"];

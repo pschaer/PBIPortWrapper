@@ -2,6 +2,71 @@
 
 All notable changes to PBI Port Wrapper will be documented in this file.
 
+## [0.9.0] - 2026-07-27
+
+v0.8 made the endpoint reachable. This release makes it defensible: it can be
+encrypted, it refuses to change your models unless you say so, and it tells you
+who has been using them.
+
+### Added
+- **HTTPS for the endpoint** (#132). Off by default — it needs a certificate, and
+  an endpoint that stopped answering after an upgrade would be a worse failure
+  than one that is not yet encrypted. The app *consumes* a certificate and never
+  creates one: being trusted is the hard half of TLS, and a self-signed
+  certificate would need installing by hand on every client machine.
+  Three sources — a **PEM pair** (`fullchain.pem` + `privkey.pem`, what Let's
+  Encrypt clients and reverse proxies emit), a **Windows certificate store
+  thumbprint**, or a password-free **PFX**
+- **Renewal without a restart.** The certificate is chosen per connection and its
+  source re-read at most every five minutes, so a certificate replaced in place is
+  live within minutes. A re-read that fails keeps the one already in hand, because
+  that is what a renewal looks like while the file is being written. Startup names
+  the certificate and its expiry, and warns inside fourteen days
+- **Certificate settings in the dashboard** — **XMLA endpoint… → Encrypt
+  connections (HTTPS)**, with a source picker, a file browser, and a line saying
+  what the settings resolve to. Encryption will not switch on while the
+  certificate does not resolve, and says why
+- **Read-only serving, by default** (#129). The endpoint refuses XMLA commands
+  that would change a model — `Alter`, `Delete`, `Backup`, TMSL scripts — with a
+  fault naming the command, and never passes them to the engine. Clear
+  **Read-only** per model to allow write-back
+- **Access logging** (#128). One line per request in `access.csv` next to the log:
+  who connected, from where, with which client, to which model, what was asked and
+  how it went. On by default and safe to leave on — it records *that* a query ran,
+  never the query or its results. Opens in Excel as a copy, so reading it does not
+  stop it recording
+- **The caller is named in the log** (#149) — including a rejected one, which
+  previously reached nothing that could record it
+
+### Changed
+- **The URL reservation is gone.** Remote access needed `netsh http add urlacl`,
+  and skipping it produced the sharpest failure in the design: the endpoint
+  reported itself running and every remote client simply could not connect. The
+  endpoint no longer runs on http.sys, so it binds every address as an ordinary
+  user (#132). The firewall rule is now the only manual step
+- **Connection strings, `.odc` files and copied URLs follow the scheme** — a
+  hard-coded `http` would have handed out addresses that cannot connect the moment
+  HTTPS came on, each one looking perfectly correct
+- **Windows sign-in (Negotiate) is no longer offered** (#164). It required a
+  domain; on a workgroup the handshake never completed, so clients hung rather
+  than reporting an error. A stored configuration asking for it now resolves to
+  password sign-in — never to no authentication
+- The grid's context menu acts on the row you clicked rather than the selected
+  one (#151)
+
+### Fixed
+- **An endpoint that failed to start said so.** The reason reached `log.txt`, the
+  tray label and the settings dialog — all of which had to be gone looking for,
+  while the symptom was a client that would not connect. It is now announced,
+  once per distinct failure (#132)
+- **Certificate and HTTPS settings restart the listener.** Without that, switching
+  encryption on kept the listener on plain HTTP while every published URL became
+  `https://` (#132)
+- Reading the access log no longer stops it recording (#128)
+- A `Discover` is a read wherever it appears, including nested in a `Batch`, so
+  read-only no longer refuses legitimate client traffic (#129)
+- The serving toast copies the connection string rather than the bare alias
+
 ## [0.8.0] - 2026-07-26
 
 The release where a model stops being addressed by a *port* and starts being

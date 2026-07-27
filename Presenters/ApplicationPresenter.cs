@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,6 +24,9 @@ namespace PBIPortWrapper.Presenters
         public ConfigService ConfigService { get; private set; }
         public ServeSessionService ServeSessionService { get; private set; }
         public HttpBridgeService HttpBridge { get; private set; }
+
+        /// <summary>The endpoint's access log (#128); the tray opens it by path.</summary>
+        public AccessLog AccessLog { get; private set; }
 
         /// <summary>Owns the endpoint's lifetime and its status (#125).</summary>
         public XmlaEndpointCoordinator Endpoint { get; private set; }
@@ -59,8 +63,14 @@ namespace PBIPortWrapper.Presenters
             // owns its lifetime from here on, so settings can change while running
             // (#125); binding failures surface as status and are never fatal — the
             // wrapper's core job must not depend on it.
+            // access.csv sits beside log.txt, so the two are found together and the
+            // app keeps one idea of where it writes things (#128).
+            AccessLog = new AccessLog(
+                Path.Combine(Path.GetDirectoryName(LoggerService.GetLogFilePath()) ?? string.Empty, "access.csv"),
+                onNotice: message => LogToService(message));
+
             HttpBridge = new HttpBridgeService(
-                new XmlaRelay(ServedCatalogs, LoggerService), LoggerService);
+                new XmlaRelay(ServedCatalogs, LoggerService), LoggerService, AccessLog);
             Endpoint = new XmlaEndpointCoordinator(HttpBridge, ConfigService, LoggerService);
             Endpoint.StatusChanged += (_, status) => LogToService($"XMLA endpoint: {status.Summary}");
             Endpoint.ApplyConfiguration();
@@ -77,7 +87,11 @@ namespace PBIPortWrapper.Presenters
             return ServeSessionService.ActiveSessions
                 .Where(s => !string.IsNullOrWhiteSpace(s.Alias))
                 .OrderBy(s => s.Alias, StringComparer.OrdinalIgnoreCase)
-                .Select(s => new ServedCatalog(s.Alias, s.InstancePort))
+                // Read-only travels with the catalog so the relay can refuse a mutating
+                // Execute without knowing anything about rules or sessions (#129). A
+                // model with no rule yet defaults to read-only, like a new one does.
+                .Select(s => new ServedCatalog(
+                    s.Alias, s.InstancePort, ConfigService.FindRule(s.FileName)?.ReadOnly ?? true))
                 .ToList();
         }
 

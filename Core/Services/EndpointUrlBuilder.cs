@@ -13,21 +13,17 @@ namespace PBIPortWrapper.Services
     /// </summary>
     public static class EndpointUrlBuilder
     {
-        public static string For(string host, int port, string alias)
+        public static string For(string host, int port, string alias, bool https = false)
         {
             if (string.IsNullOrWhiteSpace(host) || port <= 0 || string.IsNullOrWhiteSpace(alias))
                 return string.Empty;
 
-            return $"http://{host}:{port}/{Uri.EscapeDataString(alias.Trim())}";
+            // The scheme has to come from what the endpoint is actually serving (#132).
+            // Every connection string, .odc file and copied URL is built here, so a
+            // scheme fixed at "http" would hand out addresses that do not connect the
+            // moment HTTPS is switched on - and each one would look perfectly correct.
+            string scheme = https ? "https" : "http";
+            return $"{scheme}://{host}:{port}/{Uri.EscapeDataString(alias.Trim())}";
         }
-
-        /// <summary>
-        /// The one-time command that makes the endpoint reachable from other machines.
-        /// Without a URL ACL the listener falls back to localhost, which looks like the
-        /// endpoint working while no remote client can reach it — so this is offered
-        /// wherever that fallback is reported.
-        /// </summary>
-        public static string UrlAclCommand(int port) =>
-            $"netsh http add urlacl url=http://+:{port}/ user=Everyone";
     }
 }

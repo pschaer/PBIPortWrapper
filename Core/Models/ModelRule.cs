@@ -40,6 +40,15 @@ namespace PBIPortWrapper.Models
         /// </summary>
         public OnDetectionPolicy OnDetection { get; set; } = OnDetectionPolicy.DoNothing;
 
+        /// <summary>
+        /// Refuse Execute commands that would change this model (#129). On by default,
+        /// including for config files written before it existed: an absent JSON property
+        /// leaves this initializer's value alone, so an upgrade tightens rather than
+        /// silently leaving models writable. Turn it off per model for write-back with
+        /// a tool like Tabular Editor.
+        /// </summary>
+        public bool ReadOnly { get; set; } = true;
+
         public ModelRule()
         {
         }

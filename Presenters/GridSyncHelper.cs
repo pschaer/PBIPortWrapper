@@ -93,11 +93,13 @@ namespace PBIPortWrapper.Presenters
             {
                 row.Cells["colAlias"].Value = rule.StableAlias;
                 row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(rule.OnDetection);
+                row.Cells["colReadOnly"].Value = rule.ReadOnly;
             }
             else
             {
                 row.Cells["colAlias"].Value = null;
                 row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(OnDetectionPolicy.DoNothing);
+                row.Cells["colReadOnly"].Value = true;   // matches ModelRule's default (#129)
                 if (isActive) _logCallback($"Duplicate instance '{instance.FileName}'. Config skipped.");
             }
         }
@@ -112,6 +114,7 @@ namespace PBIPortWrapper.Presenters
                 if (offlineRow.Cells["colAlias"].Value != null)
                     row.Cells["colAlias"].Value = offlineRow.Cells["colAlias"].Value;
                 row.Cells["colOnDetection"].Value = offlineRow.Cells["colOnDetection"].Value;
+                row.Cells["colReadOnly"].Value = offlineRow.Cells["colReadOnly"].Value;
                 
                 _dataGridView.Rows.Remove(offlineRow);
                 _logCallback($"Merged offline config for '{instance.FileName}'.");
@@ -127,8 +130,9 @@ namespace PBIPortWrapper.Presenters
             if (row.Cells["colModelName"].Value?.ToString() != newName)
             {
                 row.Cells["colModelName"].Value = newName;
-                // "Workspace:" not "Path:" — FilePath is the AS workspace dir, not
-                // the .pbix (#59 polish); ViewContextMenuHandler parses this label.
+                // "Workspace:" not "Path:" — FilePath is the AS workspace dir, not the
+                // .pbix (#59 polish). Display only: the context menu used to parse this
+                // string back out, and took the tooltip's staleness with it (#151).
                 row.Cells["colModelName"].ToolTipText = $"Name: {instance.FileName}\nWorkspace: {instance.FilePath}";
             }
 
@@ -187,6 +191,7 @@ namespace PBIPortWrapper.Presenters
                 row.Cells["colModelName"].ToolTipText = $"Name: {rule.ModelNamePattern}\n(Offline)";
                 row.Cells["colAlias"].Value = rule.StableAlias;
                 row.Cells["colOnDetection"].Value = OnDetectionPolicyLabel.For(rule.OnDetection);
+                row.Cells["colReadOnly"].Value = rule.ReadOnly;
                 row.Cells["colPbiPort"].Value = "";
                 row.Cells["colExpand"].Value = "";
                 _painter.PaintOffline(row);

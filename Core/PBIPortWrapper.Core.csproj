@@ -6,10 +6,18 @@
 
 		<Version>0.4.0</Version>
 		<Product>PBI Port Wrapper Core</Product>
-		<Description>Headless core for PBI Port Wrapper: instance detection, port forwarding, configuration, and database rename engine. No UI dependencies.</Description>
+		<Description>Headless core for PBI Port Wrapper: instance detection, the XMLA relay and endpoint, configuration, and the database rename engine. No UI dependencies.</Description>
 		<Authors>Pascal Schär</Authors>
 		<Copyright>Copyright © 2025 Pascal Schär. Licensed under MIT License.</Copyright>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Kestrel hosts the XMLA endpoint (#132). Unlike HttpListener it binds the
+		     socket itself, so serving TLS and binding all addresses both work without
+		     administrative rights - which is what makes HTTPS possible here at all,
+		     and removes the netsh urlacl step at the same time. -->
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AnalysisServices.NetCore.retail.amd64" Version="19.79.1.1" />

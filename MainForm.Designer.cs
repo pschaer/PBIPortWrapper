@@ -49,6 +49,7 @@
             this.colPbiPort = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colAlias = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colOnDetection = new System.Windows.Forms.DataGridViewComboBoxColumn();
+            this.colReadOnly = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.colStatus = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colAction = new System.Windows.Forms.DataGridViewButtonColumn();
             this.panelTop.SuspendLayout();
@@ -170,6 +171,7 @@
             this.colPbiPort,
             this.colAlias,
             this.colOnDetection,
+            this.colReadOnly,
             this.colStatus,
             this.colAction});
             this.dataGridViewInstances.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -238,6 +240,12 @@
             this.colOnDetection.HeaderText = "On detection";
             this.colOnDetection.Name = "colOnDetection";
             // 
+            // colReadOnly
+            // 
+            this.colReadOnly.HeaderText = "Read-only";
+            this.colReadOnly.Name = "colReadOnly";
+            this.colReadOnly.ToolTipText = "Refuse XMLA commands that would change this model. Clear it to allow write-back.";
+            // 
             // colStatus
             // 
             this.colStatus.HeaderText = "Status";
@@ -294,6 +302,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colPbiPort;
         private System.Windows.Forms.DataGridViewTextBoxColumn colAlias;
         private System.Windows.Forms.DataGridViewComboBoxColumn colOnDetection;
+        private System.Windows.Forms.DataGridViewCheckBoxColumn colReadOnly;
         private System.Windows.Forms.DataGridViewTextBoxColumn colStatus;
         private System.Windows.Forms.DataGridViewButtonColumn colAction;
     }

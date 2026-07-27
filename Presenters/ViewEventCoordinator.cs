@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -17,6 +18,7 @@ namespace PBIPortWrapper.Presenters
         private readonly ServeActionHandler _serveHandler;
         private readonly Func<List<PowerBIInstance>> _instancesProvider;
         private readonly Func<string, ModelRule> _ruleLookup;
+        private readonly Func<Point, int?> _panelPidAt;
 
         public event EventHandler<RowActionEventArgs> ActionRequested;
         public event EventHandler<ConfigChangeEventArgs> ConfigRequested;
@@ -32,7 +34,9 @@ namespace PBIPortWrapper.Presenters
             Action<int> onToggleExpand,
             ServeActionHandler serveHandler,
             Func<string, ModelRule> ruleLookup,
-            Func<string, bool> isServing)
+            Func<string, bool> isServing,
+            Func<Point, int?> panelPidAt,
+            Action<string> logCallback)
         {
             _dataGridView = dataGridView;
             _gridPresenter = gridPresenter;
@@ -40,8 +44,9 @@ namespace PBIPortWrapper.Presenters
             _instancesProvider = instancesProvider;
             _serveHandler = serveHandler;
             _ruleLookup = ruleLookup;
+            _panelPidAt = panelPidAt;
 
-            ContextMenuHandler = new ViewContextMenuHandler(dataGridView);
+            ContextMenuHandler = new ViewContextMenuHandler(logCallback);
             _actionHandler = new RowActionHandler(
                 dataGridView, gridPresenter, instancesProvider, ruleLookup);
 
@@ -99,17 +104,58 @@ namespace PBIPortWrapper.Presenters
             if (e.RowIndex < 0) return;
         }
 
-        public void OnMouseDown(object sender, MouseEventArgs e)
+        /// <summary>
+        /// Decides which model the grid context menu is about, from where the pointer is.
+        ///
+        /// This replaces reading the grid's selection, which could not work inside an
+        /// expanded details panel (#151) - see <see cref="ViewContextMenuHandler"/>. The
+        /// panels are checked first because they cover their row.
+        /// </summary>
+        public void OnContextMenuOpening(object sender, CancelEventArgs e)
         {
-            if (e.Button == MouseButtons.Right)
+            var point = _dataGridView.PointToClient(Control.MousePosition);
+
+            int? panelPid = _panelPidAt?.Invoke(point);
+            if (panelPid.HasValue)
             {
-                var hit = _dataGridView.HitTest(e.X, e.Y);
-                if (hit.RowIndex >= 0)
-                {
-                    _dataGridView.ClearSelection();
-                    _dataGridView.Rows[hit.RowIndex].Selected = true;
-                }
+                var panelInstance = _instancesProvider()
+                    .FirstOrDefault(i => i.ProcessId == panelPid.Value);
+                Target(panelInstance, RowOf(panelInstance?.WorkspaceId));
+                return;
             }
+
+            var hit = _dataGridView.HitTest(point.X, point.Y);
+            if (hit.RowIndex < 0)
+            {
+                // Empty space below the rows: every item would be about nothing, and an
+                // item that quietly does nothing is the bug this fixes.
+                e.Cancel = true;
+                return;
+            }
+
+            var row = _dataGridView.Rows[hit.RowIndex];
+            // An offline row's Tag is cleared when its instance goes away, so this
+            // resolves to null and the menu says the model is not running.
+            Target(_instancesProvider().FirstOrDefault(i => i.WorkspaceId == (row.Tag as string)), row);
+        }
+
+        /// <summary>
+        /// Points the menu at an instance and highlights the row it belongs to, so the
+        /// model the menu will act on is visible before anything is clicked.
+        /// </summary>
+        private void Target(PowerBIInstance instance, DataGridViewRow row)
+        {
+            ContextMenuHandler.SetTarget(instance);
+
+            _dataGridView.ClearSelection();
+            if (row != null) row.Selected = true;
+        }
+
+        private DataGridViewRow RowOf(string workspaceId)
+        {
+            if (string.IsNullOrEmpty(workspaceId)) return null;
+            return _dataGridView.Rows.Cast<DataGridViewRow>()
+                .FirstOrDefault(r => (r.Tag as string) == workspaceId);
         }
     }
 }

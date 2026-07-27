@@ -119,6 +119,27 @@ namespace PBIPortWrapper.Services
             Save();
         }
 
+        /// <summary>
+        /// Whether this model refuses mutating Execute commands on the endpoint (#129).
+        /// Granular like the other per-model setters, so the grid and the tray edit one
+        /// value and cannot drift apart.
+        /// </summary>
+        public void SetReadOnly(string modelName, bool readOnly)
+        {
+            if (Current == null || string.IsNullOrEmpty(modelName)) return;
+            if (modelName.Equals("Untitled", StringComparison.OrdinalIgnoreCase)) return;
+
+            var rule = FindRule(modelName);
+            if (rule == null)
+            {
+                rule = new ModelRule { ModelNamePattern = modelName };
+                Current.Models.Add(rule);
+            }
+
+            rule.ReadOnly = readOnly;
+            Save();
+        }
+
         public void SetMinimizeToTray(bool enabled)
         {
             if (Current == null) return;
@@ -189,9 +210,91 @@ namespace PBIPortWrapper.Services
         }
 
         /// <summary>
+        /// Turns encryption on or off (#132).
+        ///
+        /// Refuses to turn it ON while the configured certificate does not resolve, and
+        /// says why. The endpoint would otherwise fail to start on the next apply, which
+        /// is a worse way to learn the path was mistyped than being told here.
+        /// </summary>
+        public (bool Ok, string Message) SetUseHttps(bool useHttps)
+        {
+            if (Current?.HttpBridge == null) return (false, "No configuration loaded.");
+
+            if (useHttps)
+            {
+                CertificateResolution resolved = CertificateResolver.Resolve(
+                    Current.HttpBridge.CertificatePath,
+                    Current.HttpBridge.CertificateThumbprint,
+                    Current.HttpBridge.CertificateKeyPath);
+
+                if (!resolved.Ok) return (false, resolved.Problem);
+                resolved.Certificate.Dispose();
+            }
+
+            if (Current.HttpBridge.UseHttps == useHttps) return (true, string.Empty);
+
+            Current.HttpBridge.UseHttps = useHttps;
+            Save();
+            return (true, string.Empty);
+        }
+
+        /// <summary>
+        /// Points the endpoint at a certificate, from one source at a time.
+        ///
+        /// The other sources are CLEARED, which is the whole reason this is one call
+        /// rather than three setters. <see cref="CertificateResolver"/> checks the
+        /// thumbprint first and the file second, so a thumbprint left behind from an
+        /// earlier attempt would quietly win over the PEM pair someone had just chosen -
+        /// serving a certificate the settings appear to have replaced.
+        /// </summary>
+        public void SetCertificate(
+            CertificateSource source, string path = null, string keyPath = null, string thumbprint = null)
+        {
+            if (Current?.HttpBridge == null) return;
+
+            HttpBridgeConfig bridge = Current.HttpBridge;
+            string newPath = string.Empty, newKey = string.Empty, newThumb = string.Empty;
+
+            switch (source)
+            {
+                case CertificateSource.WindowsStore:
+                    newThumb = Clean(thumbprint);
+                    break;
+                case CertificateSource.PfxFile:
+                    newPath = Clean(path);
+                    break;
+                default:
+                    newPath = Clean(path);
+                    newKey = Clean(keyPath);
+                    break;
+            }
+
+            if (bridge.CertificatePath == newPath &&
+                bridge.CertificateKeyPath == newKey &&
+                bridge.CertificateThumbprint == newThumb) return;
+
+            bridge.CertificatePath = newPath;
+            bridge.CertificateKeyPath = newKey;
+            bridge.CertificateThumbprint = newThumb;
+            Save();
+        }
+
+        /// <summary>Quotes come free when a path is pasted from Explorer's Copy as path.</summary>
+        private static string Clean(string value) =>
+            string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().Trim('"');
+
+        /// <summary>
         /// Toggles the auto-start-with-Windows setting (#87). Keeps the HKCU
         /// Run registry key in sync so the wrapper launches at login.
         /// </summary>
+        /// <summary>Whether each request is recorded in access.csv (#128).</summary>
+        public void SetAccessLog(bool enabled)
+        {
+            if (Current?.HttpBridge == null) return;
+            Current.HttpBridge.AccessLog = enabled;
+            Save();
+        }
+
         public void SetStartWithWindows(bool enabled)
         {
             if (Current == null) return;

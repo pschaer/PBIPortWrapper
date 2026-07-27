@@ -17,9 +17,6 @@ namespace PBIPortWrapper.Services
         /// <summary>The prefix actually bound, which may be the localhost fallback.</summary>
         string BoundPrefix { get; }
 
-        /// <summary>True when bound to localhost only, i.e. not reachable from the LAN.</summary>
-        bool IsLocalOnly { get; }
-
         /// <summary>Binds and starts accepting. Throws if it cannot bind.</summary>
         void Start(HttpBridgeConfig config);
 

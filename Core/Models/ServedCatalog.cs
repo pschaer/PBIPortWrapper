@@ -13,10 +13,19 @@ namespace PBIPortWrapper.Models
         public string Alias { get; }
         public int Port { get; }
 
-        public ServedCatalog(string alias, int port)
+        /// <summary>
+        /// Whether this model refuses Execute commands that would change it (#129).
+        /// Per-model rather than one endpoint-wide switch, because each model answers
+        /// on its own path and the relay therefore always knows which one a request is
+        /// for — unlike reachability, which is one listener and could only be global.
+        /// </summary>
+        public bool ReadOnly { get; }
+
+        public ServedCatalog(string alias, int port, bool readOnly = true)
         {
             Alias = alias;
             Port = port;
+            ReadOnly = readOnly;
         }
     }
 }

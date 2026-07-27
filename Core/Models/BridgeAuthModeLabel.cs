@@ -18,7 +18,6 @@ namespace PBIPortWrapper.Models
         public static readonly IReadOnlyList<BridgeAuthMode> Order = new[]
         {
             BridgeAuthMode.Basic,
-            BridgeAuthMode.Windows,
             BridgeAuthMode.Anonymous
         };
 
@@ -38,20 +37,30 @@ namespace PBIPortWrapper.Models
             }
         }
 
-        /// <summary>The consequence of choosing it, for a tooltip.</summary>
-        public static string Describe(BridgeAuthMode mode)
+        /// <summary>
+        /// The consequence of choosing it, for a tooltip.
+        ///
+        /// <paramref name="https"/> because the honest answer changed when encryption
+        /// arrived (#132): "the password is not encrypted in transit" was true of every
+        /// configuration when it was written and is now true of only some. A warning
+        /// that keeps firing after it has been addressed is one people learn to skip.
+        /// </summary>
+        public static string Describe(BridgeAuthMode mode, bool https = false)
         {
             switch (mode)
             {
                 case BridgeAuthMode.Anonymous:
                     return "Anyone who can reach this port can read every served model, and change them. " +
-                           "Only reasonable on a network you trust completely.";
+                           "Only reasonable on a network you trust completely." +
+                           (https ? string.Empty : " Encryption is off, so it is also readable in transit.");
                 case BridgeAuthMode.Windows:
                     return "Requires a domain. On a workgroup machine the handshake fails before a reply " +
                            "is sent, so clients appear to hang rather than report an error.";
                 default:
                     return "Callers sign in with a Windows account that exists on this machine. " +
-                           "The password is not encrypted in transit, so use it on a trusted network.";
+                           (https
+                               ? "Encryption is on, so the password is protected in transit."
+                               : "The password is not encrypted in transit, so use it on a trusted network.");
             }
         }
     }

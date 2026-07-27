@@ -30,23 +30,44 @@ namespace PBIPortWrapper.Services
             public readonly int Port;
             public readonly BridgeAuthMode AuthMode;
 
-            private ListenerSettings(bool enabled, int port, BridgeAuthMode authMode)
+            /// <summary>
+            /// The certificate settings belong here, unlike Hostname: they decide what
+            /// the listener BINDS, not merely what the URLs say. Left out, switching
+            /// HTTPS on would change every published URL to https:// while the listener
+            /// kept serving plain HTTP - handing out addresses that cannot connect,
+            /// which is the exact failure the scheme work set out to prevent.
+            ///
+            /// Certificate RENEWAL does not come through here: the paths stay the same
+            /// and the reload happens per connection, so a renewal never restarts the
+            /// listener or drops a client.
+            /// </summary>
+            public readonly bool UseHttps;
+            public readonly string Certificate;
+
+            private ListenerSettings(
+                bool enabled, int port, BridgeAuthMode authMode, bool useHttps, string certificate)
             {
                 Enabled = enabled;
                 Port = port;
                 AuthMode = authMode;
+                UseHttps = useHttps;
+                Certificate = certificate;
             }
 
             public static ListenerSettings From(HttpBridgeConfig config) =>
-                new ListenerSettings(config.Enabled, config.Port, config.AuthMode);
+                new ListenerSettings(config.Enabled, config.Port, config.AuthMode, config.UseHttps,
+                    $"{config.CertificateThumbprint}|{config.CertificatePath}|{config.CertificateKeyPath}");
 
             public bool Equals(ListenerSettings other) =>
-                Enabled == other.Enabled && Port == other.Port && AuthMode == other.AuthMode;
+                Enabled == other.Enabled && Port == other.Port && AuthMode == other.AuthMode &&
+                UseHttps == other.UseHttps &&
+                string.Equals(Certificate, other.Certificate, StringComparison.OrdinalIgnoreCase);
 
             public override bool Equals(object obj) => obj is ListenerSettings other && Equals(other);
 
             public override int GetHashCode() =>
-                (Enabled ? 1 : 0) ^ (Port << 1) ^ ((int)AuthMode << 20);
+                (Enabled ? 1 : 0) ^ (Port << 1) ^ ((int)AuthMode << 20) ^ (UseHttps ? 1 << 30 : 0) ^
+                (Certificate == null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(Certificate));
         }
 
         private readonly IXmlaEndpoint _endpoint;
@@ -170,8 +191,21 @@ namespace PBIPortWrapper.Services
                 port: config.Port,
                 authMode: config.AuthMode,
                 boundPrefix: _endpoint.IsRunning ? _endpoint.BoundPrefix : null,
-                isLocalOnly: _endpoint.IsRunning && _endpoint.IsLocalOnly,
-                error: error);
+                error: error,
+                // What is actually being served while it runs, and the configured
+                // intention while it is not. Reporting the intention of a RUNNING
+                // listener would let a failed HTTPS start still publish https:// URLs.
+                https: _endpoint.IsRunning ? BoundScheme() : config.UseHttps,
+                certificateSubject: Certificate()?.Subject,
+                certificateExpiry: Certificate()?.NotAfter);
+
+        /// <summary>Whether the running listener actually bound HTTPS.</summary>
+        private bool BoundScheme() =>
+            _endpoint.BoundPrefix?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true;
+
+        /// <summary>The certificate in use, when the endpoint is one that has one.</summary>
+        private System.Security.Cryptography.X509Certificates.X509Certificate2 Certificate() =>
+            (_endpoint as HttpBridgeService)?.Certificate;
 
         public void Dispose()
         {

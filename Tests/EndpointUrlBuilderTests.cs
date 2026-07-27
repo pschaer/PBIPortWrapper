@@ -43,18 +43,9 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public void UrlAclCommand_NamesTheRootPrefixForThePort()
-        {
-            // The root, not /xmla/ - a URL ACL for the old prefix does not cover it,
-            // and that mismatch silently costs LAN access.
-            Assert.Equal("netsh http add urlacl url=http://+:55556/ user=Everyone",
-                EndpointUrlBuilder.UrlAclCommand(55556));
-        }
-
-        [Fact]
         public void EveryAuthMode_HasALabelAndAConsequence()
         {
-            Assert.Equal(3, BridgeAuthModeLabel.Order.Count);
+            Assert.Equal(2, BridgeAuthModeLabel.Order.Count);
 
             foreach (BridgeAuthMode mode in BridgeAuthModeLabel.Order)
             {
@@ -73,11 +64,22 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public void AuthModeOrder_CoversEveryMode()
+        public void AuthModeOrder_OffersEveryModeThatWorks()
         {
-            // A mode missing from Order would be invisible in every surface.
-            foreach (BridgeAuthMode mode in Enum.GetValues<BridgeAuthMode>())
-                Assert.Contains(mode, BridgeAuthModeLabel.Order);
+            // A mode missing from Order is invisible in every surface, which is the
+            // point for Windows and a bug for anything else.
+            Assert.Contains(BridgeAuthMode.Basic, BridgeAuthModeLabel.Order);
+            Assert.Contains(BridgeAuthMode.Anonymous, BridgeAuthModeLabel.Order);
+        }
+
+        [Fact]
+        public void TheRetiredWindowsMode_IsNotOffered_ButCanStillBeNamed()
+        {
+            // Negotiate is no longer offered (#164) because it cannot work on a host
+            // that is not domain-joined. The label survives so a config still carrying
+            // it can be displayed rather than rendering as a bare enum or a blank.
+            Assert.DoesNotContain(BridgeAuthMode.Windows, BridgeAuthModeLabel.Order);
+            Assert.False(string.IsNullOrWhiteSpace(BridgeAuthModeLabel.For(BridgeAuthMode.Windows)));
         }
 
         [Theory]
@@ -95,20 +97,16 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public void TheStatusLine_NamesReachabilityOnlyWhenItIsRestricted()
+        public void TheStatusLine_DoesNotAnnounceReachability()
         {
-            // The endpoint always binds every interface, so being reachable is what
-            // running means. Announcing "LAN" every time says nothing and collides with
-            // forwarding's per-model "Allow network access"; the fallback is the news.
-            var reachable = new EndpointStatus(
+            // Kestrel binds every address without a URL reservation, so running IS
+            // reachable and there is no longer a restricted case to name (#132).
+            var status = new EndpointStatus(
                 enabled: true, running: true, port: 55556, authMode: BridgeAuthMode.Basic);
-            var localOnly = new EndpointStatus(
-                enabled: true, running: true, port: 55556, authMode: BridgeAuthMode.Basic,
-                isLocalOnly: true);
 
-            Assert.DoesNotContain("LAN", reachable.Summary);
-            Assert.DoesNotContain("this machine only", reachable.Summary);
-            Assert.Contains("this machine only", localOnly.Summary);
+            Assert.DoesNotContain("LAN", status.Summary);
+            Assert.DoesNotContain("this machine only", status.Summary);
+            Assert.True(status.IsLanReachable);
         }
 
         [Fact]

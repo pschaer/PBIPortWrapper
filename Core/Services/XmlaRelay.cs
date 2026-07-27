@@ -100,6 +100,19 @@ namespace PBIPortWrapper.Services
 
             WarnOnCatalogMismatch(doc, model);
 
+            if (verb == XmlaRequestType.Execute && model.ReadOnly &&
+                XmlaCommandClassifier.Mutates(doc, out string mutation))
+            {
+                // Refused here, so nothing reaches msmdsrv. The fault names both the
+                // command and the way to allow it, because "read-only" on its own gives
+                // the user at the client end nothing to act on.
+                _logger?.LogWarning("XmlaEndpoint",
+                    $"Refused {mutation} on '{model.Alias}': the model is served read-only.");
+                return CreateSoapFault("Client",
+                    $"'{model.Alias}' is served read-only, so it refused {mutation}. " +
+                    "Queries are unaffected. Clear Read-only for this model in PBI Port Wrapper to allow changes.");
+            }
+
             try
             {
                 // Debug, not Info: a single Excel session is ~50 requests, and the
@@ -213,7 +226,7 @@ namespace PBIPortWrapper.Services
         private void ReportIfFault(string response, string alias, string what)
         {
             if (_logger == null || response == null) return;
-            if (response.IndexOf("Fault>", StringComparison.OrdinalIgnoreCase) < 0) return;
+            if (!XmlaRequestSummary.IsFault(response)) return;
 
             string text = FaultText(ParseOrNull(response));
             if (text != null) _logger.LogWarning("XmlaEndpoint", $"{what} on '{alias}' returned a fault: {text}");

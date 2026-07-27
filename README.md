@@ -40,6 +40,11 @@ and free way.
   while serving, so saved workbook connections survive Desktop restarts
 - ✅ **Works from other machines and other users** — the wrapper owns authentication;
   the engine only ever talks to its owner
+- ✅ **HTTPS** — bring a certificate you already have; renewals are picked up without a
+  restart
+- ✅ **Read-only by default** — mutating XMLA commands are refused unless you allow them
+  per model
+- ✅ **Access log** — who connected, to which model, when, and how it went
 - ✅ **Instant detection** — Desktop instances appear as they start (FileSystemWatcher)
 - ✅ **On-detection policy per model** — do nothing, serve at once, or serve after a
   grace period with an *edit instead* escape hatch
@@ -102,10 +107,109 @@ The model's URL *is* the server address. The alias is the database on it.
 
 Or skip all of that: tray → the model → **Save .odc…**, and double-click the file.
 
+### DAX Studio
+
+The server box on the connect dialog connects with integrated security, so it never
+answers a password challenge — with **Password sign-in** it fails with `(401)
+Unauthorized`. Use the connection-string option instead:
+
+```
+Data Source=http://your-pc:55555/Sales;User ID=<windows account on the wrapper's machine>;Password=<password>;
+```
+
+With **No authentication** the plain server box works.
+
 ### Tabular Editor
 
-Connect to `http://your-pc:55555/Sales` as an Analysis Services server. Reading and
-writing both work.
+Connect to `http://your-pc:55555/Sales` as an Analysis Services server. Reading works
+straight away. **Writing needs Read-only cleared for that model** — see below.
+
+### Encryption
+
+Off by default; everything below is about turning it on.
+
+The short way: **XMLA endpoint… → Encrypt connections (HTTPS)**, pick where your
+certificate comes from, browse to it. The dialog says what it resolves to — subject and
+expiry — and refuses to switch encryption on until it resolves, rather than letting the
+endpoint fail to start later.
+
+The same settings live in `%APPDATA%\PBIPortWrapper\config.json`:
+
+The usual case — the two files a Let's Encrypt client or a reverse proxy such as Nginx
+Proxy Manager gives you:
+
+```json
+"HttpBridge": {
+  "UseHttps": true,
+  "CertificatePath": "C:\\path\\to\\fullchain.pem",
+  "CertificateKeyPath": "C:\\path\\to\\privkey.pem"
+}
+```
+
+Two alternatives: a certificate already in the Windows certificate store
+(`"CertificateThumbprint": "A1B2C3..."`), or a PFX file carrying its private key
+(`CertificatePath` on its own).
+
+**Prefer the PEM pair if your certificate renews automatically.** A renewed certificate
+is a different certificate with a different thumbprint, so the other two routes need a
+re-import or a re-conversion every sixty days. Two files rewritten in place by whatever
+already renews them are picked up on their own.
+
+The app uses a certificate you already have — it never creates one. A certificate it
+generated itself would be trusted by nobody, and every client machine would need it
+installed by hand. One from a CA your clients already trust needs no client-side work at
+all.
+
+There is no setting for a certificate password on purpose: that would be a stored
+credential in clear text, in the feature whose whole point is confidentiality. So the PEM
+key must not be passphrase-protected — and a protected PFX belongs in the Windows
+certificate store, used by its thumbprint.
+
+Renewals are picked up automatically, within minutes and without a restart — which
+matters, because a certificate that renews every sixty days on an app that runs for
+months would otherwise go stale and look like *"clients suddenly cannot connect"*.
+
+### Read-only
+
+Every model is served **read-only by default**: the endpoint refuses XMLA commands that
+would change it (`Alter`, `Delete`, `Backup`, a TMSL script, and so on) with a fault
+naming the command, and never passes them to the engine. Queries are unaffected.
+
+That default exists because on `No authentication` — and on plain HTTP generally —
+anyone who reaches the port would otherwise be able to alter or delete your model, not
+just read it.
+
+To allow write-back, clear **Read-only** for that model — in the grid's Read-only
+column, or tray → the model → **Read-only**. It is per model, so one model can stay
+writable while the rest do not.
+
+### Power BI Desktop
+
+Get Data → Analysis Services, server `http://your-pc:55555/Sales`. Works with
+**No authentication**.
+
+It does **not** work with **Password sign-in**: its connector does not answer the
+password challenge, and the error it reports is unhelpfully indirect — either a timeout
+or `DIME protocol error: The '9' DIME version is not supported`. That number is the
+giveaway rather than a red herring: a DIME frame's first byte carries the version in its
+top five bits, and an HTTP response begins `"HTTP/1.1 …"` where `'H'` is `0x48` —
+`0x48 >> 3` is exactly 9. It is reading the challenge response as if it were data.
+
+Use another client if you need password sign-in. Note that Power BI Desktop is the tool
+that *hosts* your model in the first place — it is rarely the one you need to read it
+with.
+
+### Who is using my models
+
+Every request is recorded in `access.csv`, next to the log in
+`%APPDATA%\PBIPortWrapper\` - timestamp, caller, client, model, what was asked, how it
+went, how long it took. Tray -> **XMLA endpoint** -> **Access log**, or the dashboard's
+**XMLA endpoint...** dialog, opens it in Excel - as a copy, so that reading the log does
+not stop it recording.
+
+It is on by default and safe to leave on: it records *that* a query ran, never the query
+or its results. (That is `LogPayloads`, a separate debugging switch that is off by
+default and should stay off.)
 
 ### Same machine
 
@@ -116,30 +220,36 @@ writing both work.
 Any MSOLAP client should work — the endpoint relays XMLA rather than reimplementing
 it — but not every client has been through a full session yet:
 
-| Client | Status |
-|---|---|
-| Excel (local and remote) | Confirmed, including password sign-in |
-| Tabular Editor | Confirmed, read and write |
-| DAX Studio | Does not connect with password sign-in — under investigation |
-| Power BI Desktop (Get Data → Analysis Services) | Fails with a DIME protocol error — under investigation |
+| Client | No authentication | Password sign-in |
+|---|---|---|
+| Excel (local and remote) | Confirmed | Confirmed |
+| DAX Studio | Confirmed | Confirmed — needs the full connection string above, not the server box |
+| Tabular Editor | Confirmed | Confirmed — reads; writes once Read-only is cleared |
+| Power BI Desktop | Confirmed | Not working — see below |
+
+Every one of these is MSOLAP or ADOMD.NET underneath, so what differs between them is
+how each is *told* to connect, not what they speak.
 
 ## 🌐 Reaching it from another computer
 
-Two one-time steps, both as Administrator:
+One one-time step, as Administrator:
 
-**1. Let the endpoint bind all addresses.** Without this the listener silently falls
-back to localhost — it looks healthy but no remote client can reach it. The tray menu
-offers to copy this command when it detects that state:
+**Open the firewall:**
 
 ```powershell
-netsh http add urlacl url=http://+:55555/ user=Everyone
+New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA" -Direction Inbound `
+  -Protocol TCP -LocalPort 55555 -Action Allow -Profile Domain,Private
 ```
 
-**2. Open the firewall:**
+`-Profile Domain,Private` keeps the port closed on networks Windows classes as public,
+so a laptop on hotel or cafe Wi-Fi does not start offering your model to the room.
+Leaving the profile out defaults to *all* networks, which is not what you want from an
+endpoint carrying your data — encrypted or not.
 
-```powershell
-New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA" -Direction Inbound -LocalPort 55555 -Protocol TCP -Action Allow
-```
+There used to be a second step - a `netsh http add urlacl` reservation, without which
+the endpoint quietly served localhost only and no remote client could reach it. That is
+gone: the endpoint no longer runs on http.sys, so it binds every address as an ordinary
+user.
 
 Then use the machine's name or IP instead of `localhost`.
 
@@ -150,14 +260,18 @@ Set in the tray, or in the dashboard's endpoint settings:
 | Mode | What it means |
 |---|---|
 | **Password sign-in** (default) | The caller supplies a Windows account **on this machine**; the password is verified against Windows. Works on a workgroup — just create a local account for them. |
-| **Windows sign-in** | Integrated Windows authentication. Needs a **domain**; on a workgroup the handshake cannot complete and clients hang. |
-| **No authentication** | Anyone who can reach the port can query **and modify** every served model. Isolated networks only. |
+| **No authentication** | Anyone who can reach the port can query every served model, and change any whose **Read-only** you have cleared. Isolated networks only. |
 
-> ⚠️ **There is no TLS.** Password sign-in sends credentials base64-encoded, which is
-> encoding, not encryption — and queries and results travel in the clear too. Use the
-> endpoint on a trusted LAN only, never port-forward it from a router, and prefer a
-> dedicated local account for remote callers. See
-> [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) §3. HTTPS is planned.
+*Windows sign-in (Negotiate) was offered until v0.8 and has been removed: it needs a
+domain, and on a workgroup the handshake never completed, so clients hung instead of
+reporting an error. An existing config that asks for it now uses password sign-in rather
+than silently authenticating nobody.*
+
+> ⚠️ **Encryption is off until you turn it on.** On plain HTTP, password sign-in sends
+> credentials base64-encoded — encoding, not encryption — and queries and results travel
+> in the clear too. Either [turn HTTPS on](#encryption), or use the endpoint on a trusted
+> LAN only: never port-forward it from a router, and prefer a dedicated local account for
+> remote callers. See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) §3.
 
 ## ⚙️ Configuration
 
@@ -168,12 +282,18 @@ Set in the tray, or in the dashboard's endpoint settings:
 ### Endpoint (global)
 - **Enabled**, **Port** (default 55555), **Hostname** (override the address shown in
   generated URLs, e.g. a DNS name or the right NIC), **Authentication**
+- **Encrypt connections (HTTPS)** and where the certificate comes from
+- **Access log** — record every request
+
+All of them are in the tray and in the dashboard's **XMLA endpoint…** dialog, and the
+two always agree: each writes the same setting and the endpoint follows.
 
 ### Files
 
 ```
 %APPDATA%\PBIPortWrapper\config.json
 %APPDATA%\PBIPortWrapper\log.txt      (rotates at 5 MB, keeps 5 files)
+%APPDATA%\PBIPortWrapper\access.csv   (one line per request, when the access log is on)
 ```
 
 ### Install as a Power BI Desktop External Tool
@@ -188,7 +308,7 @@ Set in the tray, or in the dashboard's endpoint settings:
 ## 🐛 Known limitations
 
 - ⚠️ **Desktop errors while serving** — expected; click **Stop** to restore it
-- ⚠️ **No encryption on the endpoint** — trusted LAN only (see above)
+- ⚠️ **Encryption is off by default** — turn HTTPS on, or trusted LAN only (see above)
 - ⚠️ **Conservative unsaved-changes check** — serving may ask for confirmation even
   right after a save
 - ⚠️ **Unsigned installer** — SmartScreen warns on first run; *More info → Run anyway*
@@ -213,22 +333,29 @@ silent install ([docs/installer.md](docs/installer.md)).
 Tray-first workflow, auto-serve with a per-model on-detection policy, grid ↔ tray
 convergence, auto-start with Windows, `.odc` export.
 
-### v0.8.0 ✅ (this release)
+### v0.8.0 ✅
 - **XMLA-over-HTTP endpoint** — one address for every served model, each on its own
   path, reachable from other machines and other users
 - **Port forwarding retired** — the alias replaced the fixed port entirely
 - Endpoint settings in the tray and the dashboard; password sign-in verified against
   Windows
 
+### v0.9.0 ✅ (this release)
+- **HTTPS** — bring your own certificate, from a PEM pair, the Windows certificate
+  store or a PFX; renewals picked up without a restart
+- **Read-only by default** — the endpoint refuses mutating commands unless you clear
+  Read-only for that model
+- **Access logging** — who connected, to which model, when, and how it went
+- The URL reservation is gone: the firewall rule is now the only manual step
+
 ### v1.0
-- Access logging (who connected, to which model)
-- Read-only mode for `Execute`
-- Documentation pass and release hardening
+- Confidence rather than scope: HTTPS proven in use, including a certificate renewal
+- First-run experience (#37)
+- Release hardening
 
 ### v1.x
-- HTTPS for the endpoint
-- XMLA capture diagnostic
-- First-run experience
+- XMLA capture diagnostic (#133)
+- Windows sign-in, if the host is ever domain-joined (#164)
 
 ## 📄 License
 

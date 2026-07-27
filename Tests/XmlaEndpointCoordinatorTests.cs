@@ -39,7 +39,6 @@ namespace PBIPortWrapper.Core.Tests
 
             public bool IsRunning { get; private set; }
             public string BoundPrefix { get; private set; }
-            public bool IsLocalOnly { get; set; }
 
             public void Start(HttpBridgeConfig config)
             {
@@ -48,7 +47,11 @@ namespace PBIPortWrapper.Core.Tests
                 if (FailWith != null) throw FailWith;
 
                 IsRunning = true;
-                BoundPrefix = $"http://+:{config.Port}/";
+
+                // The scheme it actually bound, which is what the coordinator reports
+                // while it runs - a listener serving http must never be described as
+                // https just because the configuration asks for it.
+                BoundPrefix = $"{(config.UseHttps ? "https" : "http")}://+:{config.Port}/";
             }
 
             public void Stop()
@@ -104,6 +107,75 @@ namespace PBIPortWrapper.Core.Tests
             // anyone, which is the whole reason it is checked before the change test.
             Assert.Equal(1, _endpoint.StartCount);
             Assert.Equal(0, _endpoint.StopCount);
+        }
+
+        // --- Encryption settings (#132) ----------------------------------------------
+
+        [Fact]
+        public void TurningHttpsOn_RebindsTheListener()
+        {
+            // Without this the listener keeps serving plain HTTP while every published
+            // URL switches to https:// - handing out addresses that cannot connect,
+            // each one looking perfectly correct.
+            _config.SetEndpointEnabled(true);
+            using var coordinator = Coordinator();
+            coordinator.ApplyConfiguration();
+            Assert.False(coordinator.Status.Https);
+
+            _config.Current.HttpBridge.UseHttps = true;
+            _config.Save();
+
+            Assert.Equal(2, _endpoint.StartCount);
+            Assert.True(coordinator.Status.Https);
+        }
+
+        [Fact]
+        public void ChangingTheCertificate_RebindsTheListener()
+        {
+            // Pointing at a different certificate is not something the running listener
+            // picks up: the per-connection reload re-reads the SAME source.
+            _config.Current.HttpBridge.UseHttps = true;
+            _config.SetEndpointEnabled(true);
+            using var coordinator = Coordinator();
+            coordinator.ApplyConfiguration();
+
+            _config.Current.HttpBridge.CertificatePath = @"C:\certs\fullchain.pem";
+            _config.Current.HttpBridge.CertificateKeyPath = @"C:\certs\privkey.pem";
+            _config.Save();
+
+            Assert.Equal(2, _endpoint.StartCount);
+        }
+
+        [Fact]
+        public void ARenewalDoesNotRebindTheListener()
+        {
+            // The paths do not change when a certificate renews - the files behind them
+            // do, and the endpoint re-reads those per connection. Restarting would drop
+            // live clients every sixty days for no reason.
+            _config.Current.HttpBridge.UseHttps = true;
+            _config.Current.HttpBridge.CertificatePath = @"C:\certs\fullchain.pem";
+            _config.SetEndpointEnabled(true);
+            using var coordinator = Coordinator();
+            coordinator.ApplyConfiguration();
+
+            _config.Save();   // some unrelated change
+
+            Assert.Equal(1, _endpoint.StartCount);
+            Assert.Equal(0, _endpoint.StopCount);
+        }
+
+        [Fact]
+        public void AListenerServingHttp_IsNotReportedAsEncrypted()
+        {
+            // The status says what is being SERVED, not what was asked for. Anything
+            // else lets a failed upgrade publish https:// URLs.
+            _config.SetEndpointEnabled(true);
+            using var coordinator = Coordinator();
+            coordinator.ApplyConfiguration();
+
+            Assert.True(coordinator.Status.Running);
+            Assert.False(coordinator.Status.Https);
+            Assert.DoesNotContain("HTTPS", coordinator.Status.Summary);
         }
 
         // --- Starting and stopping -------------------------------------------------
@@ -279,19 +351,20 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Fact]
-        public void LocalhostFallback_IsReportedAsNotLanReachable()
+        public void ARunningEndpointIsReachable_BecauseThereIsNoFallbackLeft()
         {
-            // The failure users hit without a URL ACL: the endpoint runs, but only this
-            // machine can reach it, and nothing in Excel says why.
+            // The old failure was silent: without a URL ACL the endpoint ran but only
+            // this machine could reach it, and nothing in Excel said why. Kestrel binds
+            // every address without a reservation, so running now means reachable and
+            // the status line has no restricted case left to name (#132).
             _config.SetEndpointEnabled(true);
-            _endpoint.IsLocalOnly = true;
             using var coordinator = Coordinator();
 
             coordinator.ApplyConfiguration();
 
             Assert.True(coordinator.Status.Running);
-            Assert.False(coordinator.Status.IsLanReachable);
-            Assert.Contains("this machine only", coordinator.Status.Summary);
+            Assert.True(coordinator.Status.IsLanReachable);
+            Assert.DoesNotContain("this machine only", coordinator.Status.Summary);
         }
 
         [Fact]

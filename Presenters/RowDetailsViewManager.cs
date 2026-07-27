@@ -76,6 +76,25 @@ namespace PBIPortWrapper.Presenters
             UpdatePanelPositions();
         }
 
+        /// <summary>
+        /// The process id of the expanded details panel under <paramref name="gridClientPoint"/>,
+        /// or null when the point is not over one.
+        ///
+        /// The panels are child controls of the grid, so they sit on top of their row and
+        /// swallow every mouse message that lands in them - the grid's own hit-testing
+        /// cannot see them. Resolving by position is what lets the context menu know
+        /// which model was right-clicked inside a panel (#151).
+        /// </summary>
+        public int? PanelPidAt(Point gridClientPoint)
+        {
+            foreach (var kvp in _panels)
+            {
+                if (kvp.Value.Visible && kvp.Value.Bounds.Contains(gridClientPoint))
+                    return kvp.Key;
+            }
+            return null;
+        }
+
         public void UpdatePanelPositions()
         {
             foreach (var kvp in _panels)

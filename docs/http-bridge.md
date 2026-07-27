@@ -191,24 +191,300 @@ Empty means detect it.
 `LogPayloads` writes full SOAP request and response bodies — including query results —
 to `log.txt`. Debugging only.
 
-### LAN reachability
+### Read-only models (#129)
 
-Binding `http://+:<port>/` needs elevation or a one-time URL ACL. Without it the bridge
-falls back to `localhost` only and logs a warning saying so. To allow LAN access, once,
-as Administrator:
+Read-only is **per model**, not per endpoint, and lives on the model's rule:
 
-```powershell
-netsh http add urlacl url=http://+:55555/ user=Everyone
-New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA Bridge" -Direction Inbound -LocalPort 55555 -Protocol TCP -Action Allow
+```json
+"Models": [ { "ModelNamePattern": "Sales", "RenamedDatabaseName": "Sales", "ReadOnly": true } ]
 ```
 
-> **Upgrading:** a reservation is per port *and* per path, and both have changed
-> during development — the endpoint used to bind `/xmla/` rather than the port root,
-> and the default port was briefly 55556 while the TCP forwarder still owned 55555.
-> A reservation for `http://+:55556/xmla/` therefore covers nothing you use now, and
-> the only symptom is the quiet localhost fallback. Register the root as above and
-> drop stale ones with `netsh http delete urlacl url=<the old url>`;
-> `netsh http show urlacl` lists what is registered.
+Per model rather than global because each model answers on its own path, so the relay
+always knows which one a request is for — unlike reachability, which is one listener and
+could only ever be global.
+
+It defaults to **on**, including for config files written before it existed: the
+property initializer supplies the value when the JSON has no such key, so upgrading
+tightens rather than quietly leaving every model writable. `ConfigVersion` stays at
+`2` — no migration runs over these files.
+
+`XmlaCommandClassifier` decides. It is an **allow list**, not a deny list of the
+mutating ones: a deny list fails open, and anything added to XMLA later would pass a
+gate whose entire purpose is to stop it. Allowed are:
+
+| Command | Why it is a read |
+|---|---|
+| `Statement` | Carries the query — unless it carries TMSL, see below |
+| `Discover` | The XMLA read verb; returns metadata and has no form that writes. One arriving as the body's own verb never reaches the classifier at all, so refusing a nested one contradicted the surrounding code |
+| `Cancel` | Aborts a running request; changes no model state |
+| `BeginTransaction` / `CommitTransaction` / `RollbackTransaction` | Cannot themselves change a model, and everything they wrap is judged on its own — a refused command stays refused whether or not a transaction is open |
+
+The list is a closed set of commands shown to be reads, not a growing list of things
+that turned out to break. A command that provably cannot mutate can only ever prevent a
+false refusal, never cause one.
+
+A `Statement` carrying **TMSL** — JSON rather than DAX or MDX — counts as a write. That
+is how Tabular Editor writes, so a gate that waved every `Statement` through would allow
+exactly what it promised to refuse.
+
+Container commands (`Batch`, `Sequence`, `Parallel`) carry no meaning of their own, so
+they are judged by their contents: a container is a read exactly when everything inside
+it is, however deeply nested. Refusing them whole was a regression — Tabular Editor
+reads a model's state through a `Batch`, so it could not open a read-only model at all.
+A refusal names the path to the offending command (`Batch > Parallel > Process`), in the
+log and in the fault the client displays.
+
+Session-scoped MDX (`CREATE SESSION CUBE`, `CREATE MEMBER`) is deliberately allowed: it
+is how Excel builds calculated members, it dies with the session, and it never reaches
+the model. DAX has no write syntax, and MDX cell writeback needs a writeback-enabled
+partition that a Power BI Desktop model does not have.
+
+A refused command is rejected **before** `SendToEngine`, so nothing reaches msmdsrv, and
+the SOAP fault names both the command and how to allow it.
+
+### Access logging (#128)
+
+One CSV line per request in `access.csv`, next to `log.txt` in
+`%APPDATA%\PBIPortWrapper\`. On by default.
+
+```
+Timestamp,Caller,RemoteAddress,Client,Model,Verb,Detail,Outcome,DurationMs
+2026-07-27 12:28:07,PASCAL,10.9.20.21,MSOLAP 17.0 Client,Sales,Discover,MDSCHEMA_CUBES,ok,41
+2026-07-27 12:28:19,PASCAL,10.9.20.21,ADOMD.NET,Sales,Execute,Alter,fault,0
+```
+
+`Outcome` is `ok`, `fault`, `unauthorized` or `not-allowed`.
+
+**A bare challenge is not recorded.** Under `Password sign-in` a client sends its first
+request without credentials, is challenged, and retries with them - and because a client
+opens a new connection per request, that happens every time. Recording it would put a
+blank row in front of every genuine one and double a file whose whole purpose is to be
+readable. The request that carried credentials is the access event; the challenge is the
+handshake before it. A client that never authenticates at all is still visible, in
+`log.txt`, through the once-per-run arrival line.
+
+`unauthorized` - credentials supplied and *wrong* - is a different matter and every
+attempt is recorded here individually. `log.txt` warns about the first and then reports
+a count, because clients retry and one wrong password produced three identical lines;
+this file keeps them all, because it is the record rather than the running commentary. A fault is still a
+completed request and is recorded as one - "who connected" is less useful than "who
+connected and got nowhere". `Detail` is a Discover's RequestType or an Execute's
+command, which is the difference between someone browsing metadata and someone running
+a query.
+
+**It never contains the data, or the question asked of it.** A `Statement` is recorded
+as `Statement`, never as the query it carries. That is the whole distinction from
+`LogPayloads`, which writes entire SOAP bodies including results and is a debugging
+switch: an access log has to be safe to leave on, so this one is, and it is on by
+default. A config written before it existed loads with it on.
+
+A separate file rather than lines in `log.txt` because Excel sends around fifty
+requests per session and `log.txt` is mirrored into the dashboard - per-request entries
+there would bury everything else. CSV because the people running this already have
+Excel pointed at the endpoint, and "sort by caller" should not need a log viewer.
+
+It rotates to `access.prev.csv` at 5 MB, keeping one generation; more would be
+archiving. If it cannot be written it says so once and then stays quiet - the
+endpoint's job is to serve, not to keep a diary.
+
+Tray -> **XMLA endpoint** -> **Access log**, or the dashboard's **XMLA endpoint...**
+dialog, which carries the same switch and an **Access log...** button. Both surfaces
+show one setting, so neither can drift from the other.
+
+**Opening it opens a copy.** Excel holds an open workbook for as long as its window is
+open, and a held file cannot be appended to - so opening the live access log to read it
+would stop it recording the very requests you opened it to look at. Both surfaces
+therefore copy it to `%TEMP%\PBIPortWrapper\` first and open that. The snapshot does not
+update, which is the correct trade: a log you can read and that keeps recording beats a
+live view that costs you the data.
+
+If the live file does get held anyway - by opening it directly from Explorer, say -
+every write is still retried, so recording resumes by itself the moment it is released.
+Requests during the hold are lost, and the endpoint says so once rather than once per
+request. An earlier version gave up for the rest of the run, which made looking at the
+log a way to lose it.
+
+**One gap worth knowing.** A client that never answers the password challenge is not in
+here: with `Basic` the listener answers the 401 itself, so the request never reaches the
+handler that writes these lines. Those appear in `log.txt` as `XMLA request arriving
+from ...` instead - see the diagnosis note below.
+
+### Client compatibility (#149)
+
+Measured against a real served model, not inferred. Every client here is MSOLAP or
+ADOMD.NET underneath, so what differs is how each one is *told* to connect, not the
+protocol.
+
+| Client | User-agent in the log | Result |
+|---|---|---|
+| Excel | `MSOLAP <version> Client` | Works in both authentication modes |
+| DAX Studio | `ADOMD.NET` | Works. With `Password sign-in` its server box fails `(401)` — it connects with integrated security and never answers the Basic challenge. A full connection string with `User ID=`/`Password=` works |
+| Tabular Editor | `ADOMD.NET` | Reads through a `Discover` inside a `Batch`; saves through a `Batch > Create`, which a read-only model refuses by design |
+| Power BI Desktop | `MSOLAP <version> Client` | Works with `Anonymous`. Fails with `Basic`: it does not answer the challenge |
+
+**Power BI Desktop, and a diagnosis that was half right.** Desktop works over
+`Anonymous`, so it does speak XMLA over HTTP. It fails over `Basic`.
+
+The reported `DIME protocol error: The '9' DIME version is not supported` is worth
+recording, because the number identifies the mechanism. A DIME record header carries
+`VERSION` in its top five bits, so version = `byte >> 3`; every HTTP response begins
+`"HTTP/1.1 …"`, and `'H'` is `0x48`, giving exactly 9. So the client read an HTTP
+response where it expected framed data.
+
+The first conclusion drawn from that — that Desktop must therefore be speaking native
+TCP rather than HTTP — was **wrong**, and Desktop working under `Anonymous` disproves it.
+The response it choked on was the **401 challenge**: it does not answer a password
+challenge, and then fails to parse the challenge response. Same root cause as DAX
+Studio's server box, surfacing as a much stranger message.
+
+The lesson worth keeping: an explanation that accounts for the evidence is not the same
+as the only explanation that does. The arithmetic was right about *what* was being
+misread and wrong about *why* it was there.
+
+**Diagnosing a client that will not connect.** `XMLA request arriving from …` is logged
+at Info before authentication, so it appears even for a request the listener rejects
+with a 401. That is the discriminator:
+
+- **A line appears** → it reached us. The problem is authentication or routing, and the
+  following lines say which.
+- **No line at all** → it never sent an HTTP request. The problem is in the client, and
+  no change here will fix it.
+
+Every request reaches the handler, including one about to be refused, so a 401 appears
+in the access log as `unauthorized` with the client named. That was impossible while the
+endpoint ran on http.sys, which answered the Basic challenge itself and never handed the
+request over - the blind spot that made a DAX Studio attempt look like it had never
+arrived (#149).
+
+### LAN reachability
+
+The endpoint binds every address as an ordinary user, so the only thing standing between
+a remote client and the port is the firewall. Once, as Administrator:
+
+```powershell
+New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA Bridge" -Direction Inbound `
+  -Protocol TCP -LocalPort 55555 -Action Allow -Profile Domain,Private
+```
+
+> **Upgrading from a version before #132:** the endpoint used to run on http.sys, which
+> needed a `netsh http add urlacl` reservation to bind anything but localhost, and fell
+> back to localhost silently without one. Kestrel does not, so any reservation you made
+> is now unused. `netsh http show urlacl` lists them and
+> `netsh http delete urlacl url=http://+:55555/` removes one.
+
+### HTTPS (#132)
+
+Off by default. An endpoint that stopped answering after an upgrade would be a worse
+failure than one that is not yet encrypted.
+
+```json
+"HttpBridge": {
+  "Enabled": true, "Port": 55555, "AuthMode": 2,
+  "UseHttps": true,
+  "CertificateThumbprint": "",
+  "CertificatePath": "C:\\Users\\you\\AppData\\Roaming\\PBIPortWrapper\\certs\\fullchain.pem",
+  "CertificateKeyPath": "C:\\Users\\you\\AppData\\Roaming\\PBIPortWrapper\\certs\\privkey.pem"
+}
+```
+
+**The app consumes a certificate; it never creates or obtains one.** Serving TLS is the
+easy half - being *trusted* is the hard one, and a certificate this app generated would
+be trusted by nobody, so every client machine would need it installed by hand. That cost
+is what makes self-hosted TLS not worth doing. A certificate from a CA the clients
+already trust needs no client-side work at all, and anyone in a position to run this
+already has a way to get one.
+
+Three sources, because the ways people already have one differ:
+
+| Setting | For |
+|---|---|
+| `CertificatePath` + `CertificateKeyPath` | A **PEM pair** - `fullchain.pem` and `privkey.pem` - which is what Let's Encrypt clients emit and what a reverse proxy like Nginx Proxy Manager hands out. **Recommended:** the only route where renewal is hands-off. |
+| `CertificateThumbprint` | A certificate in the Windows certificate store - where a Windows ACME client puts it. Windows guards the private key, which is the strongest of the three. LocalMachine is searched first, then CurrentUser. |
+| `CertificatePath` alone | A PFX file, which is what some ACME clients on another host produce. It must carry its private key. |
+
+A thumbprint is checked first, so a configuration with both never silently serves a
+different certificate than the one it names.
+
+**Why the PEM pair is the one to reach for.** A renewed certificate is a *different*
+certificate: its thumbprint changes, so the store route needs a re-import **and** a
+config edit every sixty days, and the PFX route needs the conversion re-run. Two files
+rewritten in place by whatever already renews them need neither - which is the whole
+point of the per-connection reload below.
+
+> **The trap this route hides.** A certificate built from PEM on Windows carries an
+> *ephemeral* private key, and SChannel refuses to serve with one: Kestrel accepts the
+> certificate, `HasPrivateKey` reports true, and every handshake then dies with the
+> client seeing nothing but a closed connection. `CertificateResolver` round-trips it
+> through PKCS#12 in memory, which gives the key a home Windows will serve from. Verified
+> against a real endpoint both ways - direct use fails, the round-trip succeeds.
+
+**There is deliberately nowhere to configure a PFX password**, and for the same reason
+the PEM key may not be passphrase-protected. A password in
+`config.json` is a stored credential in clear text, which this project does not do
+anywhere else and will not start doing for the feature whose entire point is
+confidentiality. A protected PFX belongs in the certificate store, where Windows guards
+the key; then configure its thumbprint. The error message says so when it hits one.
+
+Thumbprints are normalised before comparison. Copying one out of the Windows certificate
+dialog brings invisible left-to-right marks and spaces with it, and pasted into a config
+file that value looks identical to the correct one and matches nothing.
+
+#### Renewal
+
+A Let's Encrypt certificate is replaced roughly every sixty days, and this app runs for
+months from a login. A certificate captured at startup would quietly go stale and present
+as *"clients suddenly cannot connect"*.
+
+So the certificate is chosen per connection, through Kestrel's
+`ServerCertificateSelector`, and the source is re-read at most every five minutes. A
+renewal is live within minutes, with no restart and nothing for anyone to remember; it is
+announced in the log when it happens. Clients already connected keep the old certificate
+until they reconnect, which is simply how TLS works.
+
+A re-read that fails - which is what a renewal looks like while the file is being written
+- keeps the certificate already in hand rather than taking the endpoint down.
+
+Startup names the certificate and its expiry, and warns inside fourteen days or if it has
+already expired. That is a thing to notice on a Tuesday rather than discover from a client
+one morning.
+
+#### In the app
+
+**XMLA endpoint… → Encrypt connections (HTTPS)** carries all of it: the switch, a
+**source** picker (PEM pair / Windows certificate store / PFX file) showing only the
+fields that source uses, a file browser, and a line saying what the settings currently
+resolve to - the subject and expiry, or the resolver's reason there is no certificate.
+
+Two rules the UI enforces that the config file cannot:
+
+- **One source at a time.** Choosing a source clears the others. The resolver checks the
+  thumbprint first, so one left behind from an earlier attempt would quietly win over the
+  pair just chosen - serving a certificate the settings appear to have replaced.
+- **HTTPS will not switch on while the certificate does not resolve**, and says why.
+  Otherwise the setting is accepted, saved, and the endpoint fails to start on the next
+  apply - a much worse way to find out a path was mistyped.
+
+The status line at the top of the dialog names the certificate being **served**, which is
+not necessarily what the fields below resolve to: those describe what the next start
+would use.
+
+### Why Kestrel rather than HttpListener
+
+`HttpListener` runs on http.sys, where two things need administrative rights: binding
+anything but localhost (`netsh http add urlacl`) and serving TLS (`netsh http add
+sslcert`). Kestrel binds the socket itself and takes a certificate in code, so neither
+does. Verified unelevated before the change was made: a self-signed certificate served a
+real HTTPS request with no `sslcert` binding created or needed.
+
+That makes HTTPS (#132) possible at all here, and removes an administrative step in the
+same move.
+
+The cost is that `HttpListener` supplied Basic and Negotiate through
+`AuthenticationSchemes`, and Kestrel does not. Basic is now decoded by
+`BasicCredentials` and validated by `WindowsCredentialValidator` exactly as before —
+nothing is stored and Windows is still the only thing that says yes. Negotiate is no
+longer offered (#164): it has never worked on a host that is not domain-joined, which is
+where this runs.
 
 ## 6. Connecting from Excel
 
