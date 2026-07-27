@@ -22,7 +22,7 @@ namespace PBIPortWrapper.Presenters
         private static readonly string[] Order =
         {
             "colExpand", "colModelName", "colAlias", "colPbiPort",
-            "colOnDetection", "colAction", "colStatus"
+            "colOnDetection", "colReadOnly", "colAction", "colStatus"
         };
 
         /// <summary>
@@ -39,6 +39,7 @@ namespace PBIPortWrapper.Presenters
             ("colModelName", 2.4f),
             ("colAlias", 2.2f),
             ("colOnDetection", 2.0f),   // "Serve after grace period" is wide
+            ("colReadOnly", 1.0f),
             ("colPbiPort", 1.0f),
             ("colAction", 1.0f),
             ("colStatus", 1.0f)
@@ -46,7 +47,7 @@ namespace PBIPortWrapper.Presenters
 
         private static readonly string[] CentredCells =
         {
-            "colPbiPort", "colStatus"
+            "colPbiPort", "colStatus", "colReadOnly"
         };
 
         private static readonly string[] CentredHeadersOnly =

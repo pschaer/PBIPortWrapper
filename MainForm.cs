@@ -28,6 +28,7 @@ namespace PBIPortWrapper
         private ViewEventCoordinator _eventCoordinator;
         private TrayMenuManager _trayMenu;
         private TrayToastService _toasts;
+        private EndpointFailureNotifier _endpointFailures;
         private ServeLifecycleCoordinator _lifecycle;
         private bool _shuttingDown;
         private bool _shutdownComplete;
@@ -115,7 +116,7 @@ namespace PBIPortWrapper
                 return string.Empty;
 
             return EndpointUrlBuilder.For(
-                ConnectionEndpoint.EndpointHost(config, status), status.Port, alias);
+                ConnectionEndpoint.EndpointHost(config, status), status.Port, alias, status.Https);
         }
 
         /// <summary>The connection string for a served model, or empty when it is not
@@ -144,15 +145,20 @@ namespace PBIPortWrapper
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
                 Location = new Point(LogicalToDeviceUnits(400), LogicalToDeviceUnits(20))
             };
-            button.Click += (s, e) =>
-            {
-                using (var dialog = new Controls.EndpointSettingsDialog(
-                           _appPresenter.ConfigService, _appPresenter.Endpoint))
-                {
-                    dialog.ShowDialog(this);
-                }
-            };
+            button.Click += (s, e) => ShowEndpointSettings();
             panelTop.Controls.Add(button);
+        }
+
+        /// <summary>The endpoint settings, from the button or from a failure toast.</summary>
+        private void ShowEndpointSettings()
+        {
+            ShowFromTray();
+            using (var dialog = new Controls.EndpointSettingsDialog(
+                       _appPresenter.ConfigService, _appPresenter.Endpoint,
+                       () => _appPresenter.AccessLog?.FilePath))
+            {
+                dialog.ShowDialog(this);
+            }
         }
 
         private void InitializeEventHandlers()
@@ -170,7 +176,8 @@ namespace PBIPortWrapper
                 _appPresenter.ServeSessionService,
                 serveHandler, _appPresenter.ConfigService,
                 _appPresenter.Endpoint,
-                ShowFromTray, () => this.Close());
+                ShowFromTray, () => this.Close(),
+                () => _appPresenter.AccessLog?.FilePath);
 
             _toasts = new TrayToastService(notifyIcon, ConnectionStringFor);
             _lifecycle = new ServeLifecycleCoordinator(
@@ -186,7 +193,9 @@ namespace PBIPortWrapper
                 ToggleRowExpansion,
                 serveHandler,
                 _appPresenter.ConfigService.FindRule,
-                ws => _appPresenter.ServeSessionService.FindSession(ws) != null
+                ws => _appPresenter.ServeSessionService.FindSession(ws) != null,
+                _rowDetailsManager.PanelPidAt,
+                LogToService
             );
 
             // Reflect config edits (e.g. a grid policy change) in the tray immediately.
@@ -198,6 +207,10 @@ namespace PBIPortWrapper
             // that caused it. Subscribing here as well means the tray shows the outcome
             // without depending on the order two handlers happen to run in.
             _appPresenter.Endpoint.StatusChanged += (s, e) => RebuildTrayOnUiThread();
+
+            // An endpoint that failed to start is announced, not left to be discovered.
+            _endpointFailures = new EndpointFailureNotifier(
+                _appPresenter.Endpoint, _toasts, ShowEndpointSettings, LogToService, RunOnUiThread);
 
             // Grid On-detection dropdown / Network checkbox -> config (#88). Persist on
             // the user's commit (the cell going dirty), NOT on CellValueChanged - so the
@@ -215,6 +228,11 @@ namespace PBIPortWrapper
                     dataGridViewInstances.CommitEdit(DataGridViewDataErrorContexts.Commit);
                     if (OnDetectionPolicyLabel.TryParse(cell.Value?.ToString(), out var policy))
                         _appPresenter.ConfigService.SetOnDetection(modelName, policy);
+                }
+                else if (cell is DataGridViewCheckBoxCell && cell.OwningColumn?.Name == "colReadOnly")
+                {
+                    dataGridViewInstances.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                    _appPresenter.ConfigService.SetReadOnly(modelName, cell.Value is bool on && on);
                 }
             };
 
@@ -286,7 +304,12 @@ namespace PBIPortWrapper
             contextMenuStripGrid.Items.Add(copyPathItem);
             
             dataGridViewInstances.ContextMenuStrip = contextMenuStripGrid;
-            dataGridViewInstances.MouseDown += _eventCoordinator.OnMouseDown;
+
+            // Resolve the target as the menu opens, not from the grid's selection: an
+            // expanded details panel is a child of the grid and never gives it the click
+            // (#151). Opening fires for the bubbled right-click too, so one hook covers
+            // both the rows and the panels.
+            contextMenuStripGrid.Opening += _eventCoordinator.OnContextMenuOpening;
         }
 
         private void ToggleRowExpansion(int pid)
@@ -401,10 +424,17 @@ namespace PBIPortWrapper
         /// and endpoint restarts both arrive off the UI thread, and the menu is a UI
         /// object, so every path marshals through here.
         /// </summary>
-        private void RebuildTrayOnUiThread()
+        private void RebuildTrayOnUiThread() =>
+            RunOnUiThread(() => _trayMenu?.Rebuild(_currentInstances));
+
+        /// <summary>
+        /// Marshals to the UI thread, tolerating a form that is on its way out - these
+        /// arrive from background serves and endpoint status, which can outlive it.
+        /// </summary>
+        private void RunOnUiThread(Action action)
         {
             if (IsDisposed || Disposing) return;
-            try { BeginInvoke(new Action(() => _trayMenu?.Rebuild(_currentInstances))); }
+            try { BeginInvoke(action); }
             catch (ObjectDisposedException) { }
             catch (InvalidOperationException) { }
         }
@@ -441,6 +471,11 @@ namespace PBIPortWrapper
         {
             if (_startSilent) { Hide(); notifyIcon.Visible = true; ShowInTaskbar = true; }
             RefreshInstances();
+
+            // Here, not at wiring time: a start that failed in ApplicationPresenter's
+            // constructor raised its status before any of this existed, and a balloon
+            // needs a window that exists.
+            _endpointFailures?.CheckNow();
         }
     }
 }

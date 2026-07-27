@@ -69,5 +69,15 @@ namespace PBIPortWrapper.Presenters
 
         public void ServeFailed(string model, string message) =>
             Show("Could not serve " + model, message, null, ToolTipIcon.Error);
+
+        /// <summary>
+        /// The endpoint was asked to run and did not. Announced rather than left in the
+        /// log and the menu label, because the symptom otherwise is a client that cannot
+        /// connect and no indication anywhere that the machine knows why.
+        /// </summary>
+        public void EndpointFailed(string reason, Action onClick) =>
+            Show("XMLA endpoint is not running",
+                reason + " - click to open the endpoint settings.",
+                onClick, ToolTipIcon.Error);
     }
 }

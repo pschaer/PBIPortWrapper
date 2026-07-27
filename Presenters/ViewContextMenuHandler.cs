@@ -1,85 +1,116 @@
-﻿using System;
-using System.Drawing;
+using System;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Windows.Forms;
+using PBIPortWrapper.Models;
 
 namespace PBIPortWrapper.Presenters
 {
+    /// <summary>
+    /// The grid context menu's two workspace actions.
+    ///
+    /// The target instance is set by <see cref="ViewEventCoordinator"/> when the menu
+    /// opens, resolved from where the pointer actually is. It used to be read from the
+    /// grid's selection, which is what broke the menu inside an expanded details panel
+    /// (#151): those panels are child controls of the grid, so a right-click in one
+    /// never reaches the grid's mouse handling. The selection stayed on whatever row was
+    /// last right-clicked in the grid itself - and a plain left-click clears it, since
+    /// the grid selects cells, not rows. The menu then either did nothing at all or
+    /// acted on a different model than the panel it was invoked from.
+    /// </summary>
     public class ViewContextMenuHandler
     {
-        private readonly DataGridView _dataGridView;
+        private readonly Action<string> _log;
+        private PowerBIInstance _target;
 
-        public ViewContextMenuHandler(DataGridView dataGridView)
+        public ViewContextMenuHandler(Action<string> logCallback)
         {
-            _dataGridView = dataGridView;
+            _log = logCallback;
         }
+
+        /// <summary>
+        /// The instance the menu acts on, or null when the pointer was over a row whose
+        /// model is not running - an offline row has no workspace to open.
+        /// </summary>
+        public void SetTarget(PowerBIInstance instance) => _target = instance;
 
         public void OnOpenFolderClick(object sender, EventArgs e)
         {
-            if (_dataGridView.SelectedRows.Count > 0)
+            string path = _target?.FilePath;
+            if (string.IsNullOrEmpty(path))
             {
-                var row = _dataGridView.SelectedRows[0];
-                string toolTip = row.Cells["colModelName"].ToolTipText;
-                string filePath = null;
+                Unavailable("Open Workspace Folder");
+                return;
+            }
 
-                // The tooltip carries the AS workspace dir, labeled honestly (#59).
-                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Workspace: "))
+            try
+            {
+                // FilePath is the Analysis Services workspace directory, so that is the
+                // expected case; the file branch stays for the paths that are not.
+                if (Directory.Exists(path))
                 {
-                    filePath = toolTip.Substring(toolTip.IndexOf("Workspace: ") + 11).Trim();
+                    System.Diagnostics.Process.Start("explorer.exe", path);
                 }
-
-                if (!string.IsNullOrEmpty(filePath))
+                else if (File.Exists(path))
                 {
-                    try
-                    {
-                        if (File.Exists(filePath))
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{filePath}\"");
-                        }
-                        else if (Directory.Exists(filePath))
-                        {
-                            System.Diagnostics.Process.Start("explorer.exe", filePath);
-                        }
-                        else
-                        {
-                            string dir = Path.GetDirectoryName(filePath);
-                            if (Directory.Exists(dir))
-                            {
-                                System.Diagnostics.Process.Start("explorer.exe", dir);
-                            }
-                            else
-                            {
-                                MessageBox.Show("Cannot open folder. Path does not exist.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show($"Error opening folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    }
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\"");
                 }
                 else
                 {
-                    MessageBox.Show("Cannot open folder. The file path is not available (instance might be offline).", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    string parent = Path.GetDirectoryName(path);
+                    if (Directory.Exists(parent))
+                    {
+                        System.Diagnostics.Process.Start("explorer.exe", parent);
+                    }
+                    else
+                    {
+                        _log?.Invoke($"Workspace folder for '{_target.FileName}' does not exist: {path}");
+                        MessageBox.Show(
+                            "Cannot open folder. The workspace folder no longer exists - " +
+                            "Power BI Desktop removes it when the model is closed.",
+                            "Open Workspace Folder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"Opening the workspace folder for '{_target.FileName}' failed: {ex.Message}");
+                MessageBox.Show($"Error opening folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         public void OnCopyPathClick(object sender, EventArgs e)
         {
-            if (_dataGridView.SelectedRows.Count > 0)
+            string path = _target?.FilePath;
+            if (string.IsNullOrEmpty(path))
             {
-                var row = _dataGridView.SelectedRows[0];
-                string toolTip = row.Cells["colModelName"].ToolTipText;
-                if (!string.IsNullOrEmpty(toolTip) && toolTip.Contains("Workspace: "))
-                {
-                    string filePath = toolTip.Substring(toolTip.IndexOf("Workspace: ") + 11).Trim();
-                    Clipboard.SetText(filePath);
-                }
+                Unavailable("Copy Workspace Path");
+                return;
             }
+
+            try
+            {
+                Clipboard.SetText(path);
+            }
+            catch (Exception ex)
+            {
+                // The clipboard can be locked by another process; saying nothing here is
+                // how a copy that never happened looks exactly like one that did.
+                _log?.Invoke($"Copying the workspace path failed: {ex.Message}");
+                MessageBox.Show($"Error copying path: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Both items need a running instance. Every path out of here says why rather
+        /// than returning quietly, which is how #151 stayed invisible in the log.
+        /// </summary>
+        private void Unavailable(string action)
+        {
+            _log?.Invoke($"{action}: the model is not running, so it has no workspace folder.");
+            MessageBox.Show(
+                "This model is not running. Its workspace folder exists only while " +
+                "Power BI Desktop has the model open.",
+                action, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

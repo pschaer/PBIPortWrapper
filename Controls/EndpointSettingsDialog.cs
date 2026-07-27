@@ -27,11 +27,12 @@ namespace PBIPortWrapper.Controls
         private readonly Label _status = new Label();
         private readonly Label _warning = new Label();
         private readonly CheckBox _enabled = new CheckBox();
+        private readonly CheckBox _accessLog = new CheckBox();
         private readonly NumericUpDown _port = new NumericUpDown();
         private readonly TextBox _hostname = new TextBox();
         private readonly ComboBox _authMode = new ComboBox();
         private readonly Label _authDescription = new Label();
-        private readonly Button _copyAclCommand = new Button();
+        private CertificateSettingsSection _certificates;
 
         /// <summary>
         /// Debounces the port so that spinning 55555 → 55560 binds once, at the end,
@@ -46,11 +47,14 @@ namespace PBIPortWrapper.Controls
         /// write it out again.
         /// </summary>
         private bool _loading;
+        private readonly Func<string> _accessLogPath;
 
-        public EndpointSettingsDialog(ConfigService config, XmlaEndpointCoordinator endpoint)
+        public EndpointSettingsDialog(
+            ConfigService config, XmlaEndpointCoordinator endpoint, Func<string> accessLogPath = null)
         {
             _config = config;
             _endpoint = endpoint;
+            _accessLogPath = accessLogPath;
 
             BuildLayout();
             WireEvents();
@@ -138,6 +142,35 @@ namespace PBIPortWrapper.Controls
             _authDescription.Margin = new Padding(0, LogicalToDeviceUnits(2), 0, LogicalToDeviceUnits(10));
             AddSpanningRow(layout, _authDescription);
 
+            // Access logging belongs here as much as in the tray: the dashboard is
+            // where someone goes looking for a setting, and a switch that exists in
+            // only one of the two surfaces is the drift #107 was about (#128).
+            _accessLog.AutoSize = true;
+            _accessLog.Text = "Record every request in the access log";
+            _accessLog.Margin = new Padding(0, 0, 0, LogicalToDeviceUnits(2));
+            AddSpanningRow(layout, _accessLog);
+
+            var accessLogNote = new Label
+            {
+                AutoSize = true,
+                MaximumSize = new Size(wrapWidth, 0),
+                ForeColor = SystemColors.GrayText,
+                Text = "Who connected, to which model, when. Safe to leave on: it records " +
+                       "that a query ran, never the query or its results.",
+                Margin = new Padding(0, 0, 0, LogicalToDeviceUnits(10))
+            };
+            AddSpanningRow(layout, accessLogNote);
+
+            // Encryption last: it is the only section with a sub-choice, and putting it
+            // above the plain switches would push them off the first glance (#132). Its
+            // rows join THIS layout rather than nesting one, so its fields line up with
+            // Port and Authentication above.
+            _certificates = new CertificateSettingsSection(
+                _config, wrapWidth, fieldWidth, LogicalToDeviceUnits(6));
+            _certificates.AddTo(
+                control => AddSpanningRow(layout, control),
+                (caption, field) => AddFieldRow(layout, caption, field));
+
             AddSpanningRow(layout, BuildButtonRow());
 
             Controls.Add(layout);
@@ -164,13 +197,12 @@ namespace PBIPortWrapper.Controls
             var restart = new Button { Text = "Restart", AutoSize = true };
             restart.Click += (s, e) => _endpoint?.Restart();
 
-            _copyAclCommand.Text = "Copy the command that fixes LAN access";
-            _copyAclCommand.AutoSize = true;
-            _copyAclCommand.Visible = false;
+            var openAccessLog = new Button { Text = "Access log…", AutoSize = true };
+            openAccessLog.Click += (s, e) => Presenters.AccessLogAction.Open(_accessLogPath?.Invoke());
 
             buttons.Controls.Add(close);
             buttons.Controls.Add(restart);
-            buttons.Controls.Add(_copyAclCommand);
+            buttons.Controls.Add(openAccessLog);
 
             AcceptButton = close;
             CancelButton = close;
@@ -185,18 +217,25 @@ namespace PBIPortWrapper.Controls
             layout.SetColumnSpan(control, 2);
         }
 
-        private void AddFieldRow(TableLayoutPanel layout, string caption, Control field)
+        private void AddFieldRow(TableLayoutPanel layout, string caption, Control field) =>
+            AddFieldRow(layout, new Label { Text = caption }, field);
+
+        /// <summary>
+        /// The caption as a Label rather than a string, so a section that renames its
+        /// own captions at runtime - the certificate one does - still gets its rows from
+        /// here. Every field row in the dialog must come through this method: a second
+        /// layout with its own caption column cannot agree with this one's width, and
+        /// the fields end up a few pixels apart.
+        /// </summary>
+        private void AddFieldRow(TableLayoutPanel layout, Label caption, Control field)
         {
             int row = layout.RowCount++;
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            layout.Controls.Add(new Label
-            {
-                Text = caption,
-                AutoSize = true,
-                Anchor = AnchorStyles.Left,
-                Margin = new Padding(0, 0, LogicalToDeviceUnits(12), LogicalToDeviceUnits(6))
-            }, 0, row);
+            caption.AutoSize = true;
+            caption.Anchor = AnchorStyles.Left;
+            caption.Margin = new Padding(0, 0, LogicalToDeviceUnits(12), LogicalToDeviceUnits(6));
+            layout.Controls.Add(caption, 0, row);
 
             field.Margin = new Padding(0, 0, 0, LogicalToDeviceUnits(6));
             layout.Controls.Add(field, 1, row);
@@ -204,6 +243,12 @@ namespace PBIPortWrapper.Controls
 
         private void WireEvents()
         {
+            _accessLog.CheckedChanged += (s, e) =>
+            {
+                if (_loading) return;
+                _config?.SetAccessLog(_accessLog.Checked);
+            };
+
             _enabled.CheckedChanged += (s, e) =>
             {
                 if (_loading) return;
@@ -249,13 +294,10 @@ namespace PBIPortWrapper.Controls
             {
                 if (_loading || _authMode.SelectedIndex < 0) return;
                 BridgeAuthMode mode = BridgeAuthModeLabel.Order[_authMode.SelectedIndex];
-                _authDescription.Text = BridgeAuthModeLabel.Describe(mode);
+                _authDescription.Text = BridgeAuthModeLabel.Describe(mode, Settings?.UseHttps ?? false);
                 _config?.SetEndpointAuthMode(mode);
             };
 
-            _copyAclCommand.Click += (s, e) =>
-                EndpointMenuBuilder.CopyToClipboard(
-                    EndpointUrlBuilder.UrlAclCommand(_endpoint?.Status?.Port ?? 0));
         }
 
         private void LoadFromConfig()
@@ -267,12 +309,13 @@ namespace PBIPortWrapper.Controls
             try
             {
                 _enabled.Checked = settings.Enabled;
+                _accessLog.Checked = settings.AccessLog;
                 _port.Value = Math.Min(Math.Max(settings.Port, _port.Minimum), _port.Maximum);
                 _hostname.Text = settings.Hostname ?? string.Empty;
 
                 int index = BridgeAuthModeLabel.Order.ToList().IndexOf(settings.AuthMode);
                 _authMode.SelectedIndex = index >= 0 ? index : 0;
-                _authDescription.Text = BridgeAuthModeLabel.Describe(settings.AuthMode);
+                _authDescription.Text = BridgeAuthModeLabel.Describe(settings.AuthMode, settings.UseHttps);
             }
             finally
             {
@@ -298,16 +341,27 @@ namespace PBIPortWrapper.Controls
         {
             if (status == null) return;
 
-            _status.Text = status.Summary;
-            _copyAclCommand.Visible = status.Running && status.IsLocalOnly;
+            // The certificate actually being SERVED, which is not necessarily the one the
+            // settings below resolve to - those describe what the next start would use.
+            _status.Text = status.Https && !string.IsNullOrEmpty(status.CertificateSubject)
+                ? $"{status.Summary} — serving {status.CertificateSubject}" +
+                  (status.CertificateExpiry.HasValue
+                      ? $", valid until {status.CertificateExpiry.Value:yyyy-MM-dd}"
+                      : string.Empty)
+                : status.Summary;
 
-            if (status.Running && status.IsLocalOnly)
-            {
-                _warning.Text =
-                    "Other machines cannot reach this endpoint. It needs a one-time URL " +
-                    "reservation — copy the command below and run it as Administrator.";
-            }
-            else if (status.IsUnauthenticated)
+            _certificates?.Refresh(Settings);
+
+            // The authentication note depends on the transport - "the password is not
+            // encrypted in transit" stops being true the moment HTTPS goes on, and that
+            // switch lives in the section below this one.
+            if (Settings != null)
+                _authDescription.Text = BridgeAuthModeLabel.Describe(Settings.AuthMode, Settings.UseHttps);
+
+            // The URL-reservation warning went with the localhost fallback (#132):
+            // Kestrel binds every address, so the only thing left to warn about is
+            // running with no authentication at all.
+            if (status.IsUnauthenticated)
             {
                 _warning.Text =
                     "No authentication: anyone who can reach this port can read and change " +
@@ -333,6 +387,7 @@ namespace PBIPortWrapper.Controls
             _portCommitTimer.Stop();
             _config.SetEndpointPort((int)_port.Value);
             _config.SetEndpointHostname(_hostname.Text);
+            _certificates?.CommitPaths();
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

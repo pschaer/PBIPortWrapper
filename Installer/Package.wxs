@@ -63,7 +63,7 @@
           <Shortcut Id="StartMenuShortcutItem"
                     Directory="AppProgramsFolder"
                     Name="PBI Port Wrapper"
-                    Description="Stable ports and database names for Power BI Desktop"
+                    Description="A stable XMLA endpoint for your Power BI Desktop semantic models"
                     WorkingDirectory="INSTALLFOLDER"
                     Icon="AppIcon.exe" />
         </File>

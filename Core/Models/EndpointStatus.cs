@@ -22,23 +22,30 @@ namespace PBIPortWrapper.Models
         /// <summary>The prefix actually bound, which may be the localhost fallback.</summary>
         public string BoundPrefix { get; }
 
-        /// <summary>Bound to localhost only: reachable from this machine, not the LAN.</summary>
-        public bool IsLocalOnly { get; }
-
         /// <summary>Why the endpoint is not running, when it was meant to be.</summary>
         public string Error { get; }
 
+        /// <summary>Serving HTTPS (#132). Decides the scheme in every URL handed out.</summary>
+        public bool Https { get; }
+
+        /// <summary>What the certificate is and when it runs out, for the status line.</summary>
+        public string CertificateSubject { get; }
+        public DateTime? CertificateExpiry { get; }
+
         public EndpointStatus(
             bool enabled, bool running, int port, BridgeAuthMode authMode,
-            string boundPrefix = null, bool isLocalOnly = false, string error = null)
+            string boundPrefix = null, string error = null, bool https = false,
+            string certificateSubject = null, DateTime? certificateExpiry = null)
         {
             Enabled = enabled;
             Running = running;
             Port = port;
             AuthMode = authMode;
             BoundPrefix = boundPrefix;
-            IsLocalOnly = isLocalOnly;
             Error = error;
+            Https = https;
+            CertificateSubject = certificateSubject;
+            CertificateExpiry = certificateExpiry;
         }
 
         /// <summary>
@@ -49,10 +56,11 @@ namespace PBIPortWrapper.Models
         public bool IsUnauthenticated => Running && AuthMode == BridgeAuthMode.Anonymous;
 
         /// <summary>
-        /// Reachable from other machines. False while the endpoint fell back to
-        /// localhost, which is the failure users hit without a URL ACL.
+        /// Reachable from other machines, which running now simply means: Kestrel binds
+        /// every address without a URL reservation, so the localhost fallback that used
+        /// to make this false is gone (#132). Only the firewall can still stop a caller.
         /// </summary>
-        public bool IsLanReachable => Running && !IsLocalOnly;
+        public bool IsLanReachable => Running;
 
         /// <summary>One line describing the state, shared by every surface.</summary>
         public string Summary
@@ -62,17 +70,10 @@ namespace PBIPortWrapper.Models
                 if (!Enabled) return "Off";
                 if (!Running) return string.IsNullOrEmpty(Error) ? "Not running" : $"Failed to start: {Error}";
 
-                // Only the exception is worth stating. The endpoint always binds every
-                // interface, and there is no per-model network switch for it, so being
-                // reachable from the network is simply what running means — saying
-                // "LAN" every time carries no information and invites confusion with
-                // forwarding's per-model "Allow network access". The localhost
-                // fallback is the anomaly, so that is what gets named.
-                string reach = IsLocalOnly ? "this machine only, " : string.Empty;
-
                 // The label, not the enum name: the tray menu shows the same mode, and
                 // two names for one setting reads as two settings.
-                return $"Running on port {Port} ({reach}{BridgeAuthModeLabel.For(AuthMode)})";
+                string transport = Https ? "HTTPS, " : string.Empty;
+                return $"Running on port {Port} ({transport}{BridgeAuthModeLabel.For(AuthMode)})";
             }
         }
 

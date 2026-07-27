@@ -22,11 +22,42 @@ namespace PBIPortWrapper.Presenters
     {
         private readonly XmlaEndpointCoordinator _endpoint;
         private readonly ConfigService _config;
+        private readonly Func<string> _accessLogPath;
 
-        public EndpointMenuBuilder(XmlaEndpointCoordinator endpoint, ConfigService config)
+        public EndpointMenuBuilder(
+            XmlaEndpointCoordinator endpoint, ConfigService config, Func<string> accessLogPath = null)
         {
             _endpoint = endpoint;
             _config = config;
+            _accessLogPath = accessLogPath;
+        }
+
+        /// <summary>
+        /// The access log (#128): a toggle, and a way to open it. Opening it matters as
+        /// much as writing it — a log nobody can find answers nothing.
+        /// </summary>
+        private ToolStripMenuItem BuildAccessLogItem()
+        {
+            bool on = _config?.Current?.HttpBridge?.AccessLog ?? true;
+
+            var item = new ToolStripMenuItem("Access log");
+            item.DropDownItems.Add(new ToolStripMenuItem("Record every request", null,
+                (s, e) => _config?.SetAccessLog(!on))
+            {
+                Checked = on,
+                ToolTipText = "Who connected, to which model, when. Safe to leave on: " +
+                              "it never contains a query or its results."
+            });
+
+            string path = _accessLogPath?.Invoke();
+            item.DropDownItems.Add(new ToolStripMenuItem("Open access log", null,
+                (s, e) => AccessLogAction.Open(path))
+            {
+                Enabled = !string.IsNullOrEmpty(path),
+                ToolTipText = path
+            });
+
+            return item;
         }
 
         /// <summary>The endpoint section, as one collapsible item. UI thread only.</summary>
@@ -63,6 +94,7 @@ namespace PBIPortWrapper.Presenters
             }
 
             item.DropDownItems.Add(new ToolStripSeparator());
+            item.DropDownItems.Add(BuildAccessLogItem());
             item.DropDownItems.Add(new ToolStripMenuItem("Port and host name are in the dashboard") { Enabled = false });
 
             return item;
@@ -78,7 +110,7 @@ namespace PBIPortWrapper.Presenters
                     (s, e) => _config?.SetEndpointAuthMode(captured))
                 {
                     Checked = status.AuthMode == mode,
-                    ToolTipText = BridgeAuthModeLabel.Describe(mode)
+                    ToolTipText = BridgeAuthModeLabel.Describe(mode, status.Https)
                 });
             }
             return menu;
@@ -90,27 +122,32 @@ namespace PBIPortWrapper.Presenters
         /// </summary>
         private void AddWarnings(ToolStripMenuItem item, EndpointStatus status)
         {
-            if (status.Running && status.IsLocalOnly)
-            {
-                item.DropDownItems.Add(new ToolStripSeparator());
-                item.DropDownItems.Add(new ToolStripMenuItem(
-                    "Not reachable from other machines") { Enabled = false });
 
-                // The fix is a one-time elevated command, and the failure it cures is
-                // silent — the endpoint looks healthy while no remote client connects.
-                item.DropDownItems.Add(new ToolStripMenuItem("Copy the command that fixes this", null,
-                    (s, e) => CopyToClipboard(EndpointUrlBuilder.UrlAclCommand(status.Port)))
-                {
-                    ToolTipText = "Run it once in an elevated PowerShell, then restart the endpoint."
-                });
-            }
+            if (!status.IsUnauthenticated) return;
 
-            if (status.IsUnauthenticated)
+            // Disabled and unlabelled, this read as a greyed-out COMMAND rather than a
+            // warning - it sat between Authentication and Restart looking like an action
+            // someone had switched off, and said neither what had caused it nor what to
+            // do about it. It is a consequence of the setting directly above it, so it
+            // says which setting, and it offers the way out rather than describing one.
+            item.DropDownItems.Add(new ToolStripSeparator());
+            item.DropDownItems.Add(new ToolStripMenuItem(
+                "⚠  Authentication is off — anyone who can reach port " + status.Port +
+                " can read your models")
             {
-                item.DropDownItems.Add(new ToolStripSeparator());
-                item.DropDownItems.Add(new ToolStripMenuItem(
-                    "Anyone on this network can query and change models") { Enabled = false });
-            }
+                Enabled = false,
+                ToolTipText =
+                    "No authentication is set, so callers are not asked who they are. " +
+                    "Served models can be read by anyone who can reach this port, and " +
+                    "changed unless Read-only is set for that model.\n\n" +
+                    "Set Authentication to Password sign-in to require a Windows account."
+            });
+
+            item.DropDownItems.Add(new ToolStripMenuItem("Require a password instead", null,
+                (s, e) => _config?.SetEndpointAuthMode(BridgeAuthMode.Basic))
+            {
+                ToolTipText = "Callers sign in with a Windows account that exists on this machine."
+            });
         }
 
         internal static void CopyToClipboard(string text)

@@ -12,9 +12,10 @@ must happen *before* serving starts (the preflight asks when in doubt).
 runtime; it resolves its own database by name.
 
 **Workaround:** By design, serving is a deliberate, serve-only session: click
-**Stop Serving** and Desktop recovers immediately (the original name is
-restored). If the wrapper crashes mid-serve, the startup recovery prompt offers
-the same restoration.
+**Stop** — in the row's Action menu or the tray — and Desktop recovers
+immediately, because the original name is restored. If the wrapper crashes
+mid-serve, the startup recovery prompt offers the same restoration; and closing
+the wrapper restores every served database on the way out.
 
 **Status:** Accepted, and load-bearing rather than incidental. Renaming at the
 source is what makes the alias the database's *real* name, so the XMLA endpoint
@@ -43,12 +44,15 @@ portable ZIP behaves the same way.
 warrants the cost. See [docs/installer.md](docs/installer.md) for details.
 
 
-## 3. ⚠️ The XMLA Endpoint Has No Encryption
+## 3. ⚠️ The XMLA Endpoint Is Not Encrypted Unless You Turn HTTPS On
 
-> **⚠️ WARNING — use the XMLA endpoint only on a network you trust.**
-> Everything it carries, including passwords, travels in the clear.
+> **⚠️ WARNING — on plain HTTP, everything it carries, including passwords,
+> travels in the clear. Use it only on a network you trust, or turn HTTPS on.**
 
-**Issue:** The XMLA endpoint speaks plain HTTP. There is no TLS.
+**Issue:** The XMLA endpoint speaks plain HTTP **by default**. HTTPS is available
+(#132) but is off until configured with a certificate, because an endpoint that
+stopped answering after an upgrade would be a worse failure than one that is not
+yet encrypted. Everything below describes the default.
 
 **Impact:** Anyone able to observe traffic between a client and this machine can
 read:
@@ -59,10 +63,36 @@ read:
   account on the host**, so a captured password is a real credential.
 - every **query and result** — that is, your model's data.
 
-**Root Cause:** HTTPS needs a certificate bound to the port, which is a
-meaningfully larger piece of work than the endpoint itself (issue #132).
+Read-only (#129) does not help here: it restricts what a caller may *do*, not what
+an observer may *see*.
 
-**Workaround:** Treat the endpoint as a trusted-LAN feature.
+**Root Cause:** Encryption cannot be switched on for you, because it needs a
+certificate only you can supply.
+
+**Fix:** Turn HTTPS on. It needs a certificate you already have — the app never
+creates one, because a certificate it generated would be trusted by nobody and
+every client machine would need it installed by hand.
+
+```json
+"HttpBridge": {
+  "UseHttps": true,
+  "CertificatePath": "C:\\path\\to\\fullchain.pem",
+  "CertificateKeyPath": "C:\\path\\to\\privkey.pem"
+}
+```
+
+That is the `fullchain.pem` / `privkey.pem` pair a Let's Encrypt client or a
+reverse proxy hands out; a certificate in the Windows certificate store
+(`CertificateThumbprint`) and a password-free PFX (`CertificatePath` alone) also
+work. Renewals are picked up within minutes without a restart. See
+[README](README.md#encryption) and [docs/http-bridge.md](docs/http-bridge.md).
+
+Or set it in the app: **XMLA endpoint… → Encrypt connections (HTTPS)**, which is
+the same settings with a file picker and tells you what the certificate resolves
+to before you switch it on.
+
+**Workaround, if you have no certificate:** treat the endpoint as a trusted-LAN
+feature.
 
 - Do not expose the port to the internet, and do not port-forward it on a router.
 - Prefer a **dedicated local Windows account** for remote callers rather than one
@@ -70,38 +100,48 @@ meaningfully larger piece of work than the endpoint itself (issue #132).
 - On an untrusted network, put it behind something that does provide transport
   security — a VPN, or an SSH tunnel.
 - `No authentication` is worse still: anyone who can reach the port can read
-  **and modify** every served model. It is for isolated networks only.
+  every served model. It is for isolated networks only. Models are served
+  **read-only by default** (#129), which blunts this considerably — a caller who
+  reaches the port can read the model but cannot alter or delete it — so clear
+  Read-only only for a model you actually write to, and prefer not to leave it
+  clear on `No authentication`.
 
-**Status:** Accepted as a deliberate decision. Authentication is genuinely
-enforced (the password is verified against Windows), but it is **authenticated,
-not confidential**. HTTPS is tracked as issue #132.
+**Status:** Resolved for anyone who turns HTTPS on; the *default* remains
+plain HTTP and is what this section describes. On that default, authentication is
+genuinely enforced — the password is verified against a real Windows account — but
+the channel is **authenticated, not confidential**.
 
 
-## 4. Remote Access Needs Two Manual Steps
-**Issue:** Reaching the endpoint from another machine requires a URL reservation
-and a firewall rule, both administrative and neither done by the app.
+## 4. Remote Access Needs One Manual Step
 
-**Impact:** Without the URL reservation the listener falls back to `localhost`
-only. That is the awkward part: the endpoint reports itself as running, the tray
-shows no error a casual glance would catch, and every remote client simply
-cannot connect. Without the firewall rule, connections are dropped instead.
+**Issue:** Reaching the endpoint from another machine requires a firewall rule,
+which is administrative and not something the app does on a user's behalf.
 
-**Root Cause:** Binding `http://+:PORT/` requires either an administrative
-process or a standing `netsh http` URL reservation. The app deliberately does
-not run elevated, and adding a firewall rule is not something it should do
-silently on a user's behalf.
+**Impact:** Without it, remote connections are dropped.
+
+**Root Cause:** Opening a port in Windows Firewall needs elevation, and an
+application that silently opened one would be doing something the user did not
+ask for.
 
 **Workaround:** Run once, as Administrator:
 
 ```powershell
-netsh http add urlacl url=http://+:55555/ user=Everyone
-New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA" -Direction Inbound -LocalPort 55555 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA" -Direction Inbound `
+  -Protocol TCP -LocalPort 55555 -Action Allow -Profile Domain,Private
 ```
 
-The tray detects the localhost fallback, says so in the endpoint status, and
-offers to copy the `urlacl` command. Note that a reservation is **per port and
-per path** — a reservation for an old port or for `.../xmla/` does not cover
-`http://+:55555/`.
+`-Profile Domain,Private` deliberately excludes the public profile: on the default
+plain-HTTP setting this endpoint carries credentials and data in the clear
+(section 3), so it should not be reachable on a network Windows already considers
+untrusted. Omitting the profile opens all three.
 
-**Status:** Accepted. An installer-time reservation is possible (the MSI already
-runs elevated) but would bake in a port choice the user can change afterwards.
+**This used to be two steps.** A `netsh http add urlacl` URL reservation was also
+required, and skipping it produced the sharpest failure in the design: the
+endpoint reported itself as running, the tray showed nothing a casual glance would
+catch, and every remote client simply could not connect. That is gone (#132) — the
+endpoint no longer runs on http.sys, so it binds every address as an ordinary user
+and there is no fallback left to fall into. Any reservation you added for an
+earlier version is now harmless and can be removed with
+`netsh http delete urlacl url=http://+:55555/`.
+
+**Status:** Accepted, and now one step rather than two.

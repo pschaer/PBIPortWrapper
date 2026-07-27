@@ -358,14 +358,16 @@ namespace PBIPortWrapper.Core.Tests
         }
 
         [Theory]
-        [InlineData(BridgeAuthMode.Basic, AuthenticationSchemes.Basic)]
-        [InlineData(BridgeAuthMode.Anonymous, AuthenticationSchemes.Anonymous)]
-        [InlineData(BridgeAuthMode.Windows, AuthenticationSchemes.IntegratedWindowsAuthentication)]
-        public void AuthMode_MapsToBuiltInListenerScheme(BridgeAuthMode mode, AuthenticationSchemes expected)
+        [InlineData(BridgeAuthMode.Basic, BridgeAuthMode.Basic)]
+        [InlineData(BridgeAuthMode.Anonymous, BridgeAuthMode.Anonymous)]
+        [InlineData(BridgeAuthMode.Windows, BridgeAuthMode.Basic)]
+        public void AStoredWindowsMode_ResolvesToBasicRatherThanToNothing(
+            BridgeAuthMode stored, BridgeAuthMode expected)
         {
-            // Auth stays the listener's job: every mode is a built-in scheme, so no
-            // credential handling of our own can creep back in.
-            Assert.Equal(expected, HttpBridgeService.ToSchemes(mode));
+            // Negotiate is no longer offered (#164). A config still carrying it must
+            // not quietly come to mean "authenticate nobody" - the one way this change
+            // could turn a security setting into its opposite.
+            Assert.Equal(expected, HttpBridgeService.EffectiveAuthMode(stored));
         }
 
         [Fact]
@@ -390,6 +392,107 @@ namespace PBIPortWrapper.Core.Tests
             Assert.True(restored.HttpBridge.Enabled);
             Assert.Equal(60000, restored.HttpBridge.Port);
             Assert.Equal(BridgeAuthMode.Anonymous, restored.HttpBridge.AuthMode);
+        }
+
+        // --- Read-only models (#129) ----------------------------------------------
+
+        private const string AlterEnvelope =
+            "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body>" +
+            "<Execute xmlns=\"urn:schemas-microsoft-com:xml-analysis\">" +
+            "<Command><Alter AllowCreate=\"true\"><Object><DatabaseID>Sales</DatabaseID></Object></Alter></Command>" +
+            "<Properties><PropertyList><Catalog>Sales</Catalog></PropertyList></Properties>" +
+            "</Execute></soap:Body></soap:Envelope>";
+
+        [Fact]
+        public void ReadOnlyModel_RefusesMutatingExecute_WithoutReachingTheEngine()
+        {
+            var relay = new RecordingRelay(new ServedCatalog("Sales", 60001, readOnly: true));
+
+            string response = relay.Relay(AlterEnvelope, "Execute", "/Sales");
+
+            // Not reaching the engine is the point: a refusal that still ran the
+            // command would be a warning label, not a gate.
+            Assert.Empty(relay.Sends);
+            Assert.Contains("Fault", response);
+            Assert.Contains("read-only", response);
+            Assert.Contains("Alter", response);
+        }
+
+        [Fact]
+        public void ReadOnlyModel_LeavesQueriesAlone()
+        {
+            var relay = new RecordingRelay(new ServedCatalog("Sales", 60001, readOnly: true));
+
+            relay.Relay(ExecuteEnvelope, "Execute", "/Sales");
+
+            Assert.Single(relay.Sends);
+            Assert.Equal(ExecuteEnvelope, relay.Sends[0].Envelope);
+        }
+
+        [Fact]
+        public void ReadOnlyModel_LeavesDiscoverAlone()
+        {
+            var relay = new RecordingRelay(new ServedCatalog("Sales", 60001, readOnly: true));
+
+            relay.Relay(DiscoverEnvelope, "Discover", "/Sales");
+
+            Assert.Single(relay.Sends);
+        }
+
+        [Fact]
+        public void WritableModel_PassesMutatingExecuteThroughUnchanged()
+        {
+            var relay = new RecordingRelay(new ServedCatalog("Sales", 60001, readOnly: false));
+
+            relay.Relay(AlterEnvelope, "Execute", "/Sales");
+
+            Assert.Single(relay.Sends);
+            Assert.Equal(AlterEnvelope, relay.Sends[0].Envelope);
+        }
+
+        [Fact]
+        public void ReadOnly_IsPerModel_NotPerEndpoint()
+        {
+            var relay = new RecordingRelay(
+                new ServedCatalog("Sales", 60001, readOnly: true),
+                new ServedCatalog("Scratch", 60002, readOnly: false));
+
+            string refused = relay.Relay(AlterEnvelope, "Execute", "/Sales");
+            relay.Relay(AlterEnvelope, "Execute", "/Scratch");
+
+            Assert.Contains("Fault", refused);
+            Assert.Single(relay.Sends);
+            Assert.Equal(60002, relay.Sends[0].Port);
+        }
+
+        [Fact]
+        public void ServedModelDefaultsToReadOnly()
+        {
+            // The default has to hold at every layer, or one of them quietly opens it.
+            Assert.True(new ServedCatalog("Sales", 60001).ReadOnly);
+            Assert.True(new ModelRule("Sales").ReadOnly);
+        }
+
+        [Fact]
+        public void ConfigWrittenBeforeReadOnlyExisted_LoadsAsReadOnly()
+        {
+            // ConfigVersion stays at 2, so no migration runs over these files: the
+            // property initializer is what makes an upgrade tighten rather than leave
+            // every existing model writable.
+            var restored = JsonConvert.DeserializeObject<ModelRule>(
+                "{ \"ModelNamePattern\": \"Sales\", \"RenamedDatabaseName\": \"Sales\" }");
+
+            Assert.True(restored.ReadOnly);
+            Assert.Equal("Sales", restored.StableAlias);
+        }
+
+        [Fact]
+        public void ExplicitlyWritableConfig_StaysWritable()
+        {
+            var restored = JsonConvert.DeserializeObject<ModelRule>(
+                "{ \"ModelNamePattern\": \"Sales\", \"ReadOnly\": false }");
+
+            Assert.False(restored.ReadOnly);
         }
     }
 }
