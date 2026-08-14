@@ -33,6 +33,14 @@ The address never changes, the name never changes, and callers authenticate to t
 wrapper as themselves — allowing you to host semantic models in a private, stable 
 and free way.
 
+## 💡 Use Cases
+
+**Personal analytics with sensitive data**  
+You have built a well-groomed dimensional model in Power BI Desktop — tracking personal finances, health data, or any other private information — as a learning exercise or for your own analysis. The model is solid, but Excel is the better tool for open-ended exploration and ad-hoc what-ifs. Serve it locally and connect Excel to a stable endpoint. Your data stays on your machine; nothing transits a cloud service or shared gateway.
+
+**Offline deep-dive on the road**  
+A semantic model is handed to you for validation, comparison against reference data, or simply to make sense of a complex dataset before you leave on a long trip. You will be without reliable internet — or you choose not to trust the connection you have. Serve the model before you go, then work with it in Excel, DAX Studio, or Tabular Editor for days or weeks entirely offline. No VPN, no re-authentication, no broken connections when the gateway drops.
+
 ## ✨ Features
 
 - ✅ **One endpoint, many models** — every served model on one port, addressed by name
