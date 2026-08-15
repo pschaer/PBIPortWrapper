@@ -5,8 +5,8 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<Version>0.4.0</Version>
-		<Product>PBI Port Wrapper Core</Product>
-		<Description>Headless core for PBI Port Wrapper: instance detection, the XMLA relay and endpoint, configuration, and the database rename engine. No UI dependencies.</Description>
+		<Product>PBIRelay Core</Product>
+		<Description>Headless core for PBIRelay: instance detection, the XMLA relay and endpoint, configuration, and the database rename engine. No UI dependencies.</Description>
 		<Authors>Pascal Schär</Authors>
 		<Copyright>Copyright © 2025 Pascal Schär. Licensed under MIT License.</Copyright>
 	</PropertyGroup>

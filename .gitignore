@@ -375,3 +375,7 @@ temp_publish/
 build_log.txt
 build_diag.txt
 restore_log.txt
+
+# Internal session-handoff notes — kept locally, never versioned (#185)
+docs/HANDOFF.md
+docs/HANDOVER-*.md

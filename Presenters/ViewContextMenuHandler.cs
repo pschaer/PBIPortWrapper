@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// The grid context menu's two workspace actions.

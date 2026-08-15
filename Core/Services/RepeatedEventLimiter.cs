@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Reports a repeating event once, then keeps count (#132).

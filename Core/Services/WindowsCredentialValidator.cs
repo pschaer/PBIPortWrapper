@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Verifies a user name and password against a Windows account on this machine.
@@ -68,7 +68,7 @@ namespace PBIPortWrapper.Services
 
         /// <summary>
         /// Splits the forms a user may type. A bare name is looked up on this machine
-        /// (<c>"."</c>), which is the account the wrapper's own docs tell them to use.
+        /// (<c>"."</c>), which is the account PBIRelay's own docs tell them to use.
         /// </summary>
         private static void SplitAccount(string userName, out string domain, out string account)
         {

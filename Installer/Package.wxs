@@ -2,12 +2,19 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
 
   <!--
-    PBI Port Wrapper installer.
+    PBIRelay installer.
 
-    Payload is the v0.5 single-file, self-contained win-x64 publish, so the whole
-    application is exactly two files: PBIPortWrapper.exe and its runtime icon
-    Resources\app_icon.png (config.json and log.txt live under %AppData%, not here,
-    so installing into Program Files needs no runtime write access).
+    Payload is the v0.5 single-file, self-contained win-x64 publish: PBIRelay.exe and
+    its runtime icon Resources\app_icon.png (config.json and log.txt live under
+    %AppData%, not here, so installing into Program Files needs no runtime write
+    access).
+
+    LICENSE.txt and THIRD-PARTY-NOTICES.md install beside the executable. They are not
+    documentation-for-convenience: a self-contained build redistributes Microsoft's AMO
+    and ADOMD.NET client libraries and the .NET runtime under their own licences, and
+    MIT requires its own notice to travel with the software. The ZIP carries them; until
+    v1.0.0 the MSI did not, so the two channels shipped the same binaries with different
+    notices.
 
     The package is intentionally x86 (the WiX default). On 64-bit Windows an x86
     package resolves ProgramFilesFolder -> "Program Files (x86)" and
@@ -15,32 +22,32 @@
     Common Files path is exactly where Power BI Desktop looks for External Tools
     manifests, on every edition. The 64-bit app runs fine from the x86 location.
     Keeping the package x86 lets us use the plain CommonFilesFolder id (no 6432
-    juggling) and keeps the install path in step with pbiportwrapper.pbitool.json.
+    juggling) and keeps the install path in step with pbirelay.pbitool.json.
   -->
 
-  <Package Name="PBI Port Wrapper"
+  <Package Name="PBIRelay"
            Manufacturer="Pascal Schär"
-           Version="!(bind.FileVersion.PBIPortWrapperExe)"
+           Version="!(bind.FileVersion.PBIRelayExe)"
            UpgradeCode="266f7928-95c2-46f3-8126-c8c191789dfe"
            Scope="perMachine">
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Feature Id="Main" Title="PBI Port Wrapper" Level="1">
+    <Feature Id="Main" Title="PBIRelay" Level="1">
       <ComponentGroupRef Id="AppComponents" />
       <ComponentRef Id="ExternalToolRegistration" />
     </Feature>
 
     <!-- Install locations -->
     <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="PBI Port Wrapper">
+      <Directory Id="INSTALLFOLDER" Name="PBIRelay">
         <Directory Id="ResourcesFolder" Name="Resources" />
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="AppProgramsFolder" Name="PBI Port Wrapper" />
+      <Directory Id="AppProgramsFolder" Name="PBIRelay" />
     </StandardDirectory>
 
     <!-- Power BI Desktop External Tools registration directory (x86 Common Files) -->
@@ -56,13 +63,13 @@
          component so the exe (a per-machine file in Program Files) is the keypath -
          this keeps the per-machine shortcut clean and avoids the HKCU/HKLM keypath
          ambiguity ICE38/ICE43/ICE57 flag when a shortcut sits in its own component. -->
-    <Icon Id="AppIcon.exe" SourceFile="Publish\PBIPortWrapper.exe" />
+    <Icon Id="AppIcon.exe" SourceFile="Publish\PBIRelay.exe" />
     <ComponentGroup Id="AppComponents">
       <Component Directory="INSTALLFOLDER">
-        <File Id="PBIPortWrapperExe" Source="Publish\PBIPortWrapper.exe" KeyPath="yes">
+        <File Id="PBIRelayExe" Source="Publish\PBIRelay.exe" KeyPath="yes">
           <Shortcut Id="StartMenuShortcutItem"
                     Directory="AppProgramsFolder"
-                    Name="PBI Port Wrapper"
+                    Name="PBIRelay"
                     Description="A stable XMLA endpoint for your Power BI Desktop semantic models"
                     WorkingDirectory="INSTALLFOLDER"
                     Icon="AppIcon.exe" />
@@ -72,13 +79,20 @@
       <Component Directory="ResourcesFolder">
         <File Id="AppIconPng" Source="Publish\Resources\app_icon.png" KeyPath="yes" />
       </Component>
+      <Component Directory="INSTALLFOLDER">
+        <File Id="LicenseTxt" Source="..\LICENSE.txt" Name="LICENSE.txt" KeyPath="yes" />
+      </Component>
+      <Component Directory="INSTALLFOLDER">
+        <File Id="ThirdPartyNotices" Source="..\THIRD-PARTY-NOTICES.md"
+              Name="THIRD-PARTY-NOTICES.md" KeyPath="yes" />
+      </Component>
     </ComponentGroup>
 
     <!-- Power BI External Tool manifest -->
     <Component Id="ExternalToolRegistration" Directory="ExternalToolsFolder" Guid="*">
       <File Id="PbiToolManifest"
-            Source="..\pbiportwrapper.pbitool.json"
-            Name="pbiportwrapper.pbitool.json"
+            Source="..\pbirelay.pbitool.json"
+            Name="pbirelay.pbitool.json"
             KeyPath="yes" />
     </Component>
 

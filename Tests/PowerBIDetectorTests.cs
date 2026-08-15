@@ -1,10 +1,10 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     public class PowerBIDetectorTests : IDisposable
     {

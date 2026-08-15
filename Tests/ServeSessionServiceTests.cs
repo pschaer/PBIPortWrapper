@@ -5,11 +5,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers the serve-session state machine (#57) through the IRenameEngine and
@@ -49,7 +49,7 @@ namespace PBIPortWrapper.Core.Tests
 
         public ServeSessionServiceTests()
         {
-            _tempDir = Path.Combine(Path.GetTempPath(), "PBIPortWrapperTests", Guid.NewGuid().ToString("N"));
+            _tempDir = Path.Combine(Path.GetTempPath(), "PBIRelayTests", Guid.NewGuid().ToString("N"));
             _config = new ConfigService(new ConfigurationManager(_tempDir));
             _config.Load();
             _service = new ServeSessionService(_engine, _config, _probe);

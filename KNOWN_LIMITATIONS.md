@@ -13,20 +13,20 @@ runtime; it resolves its own database by name.
 
 **Workaround:** By design, serving is a deliberate, serve-only session: click
 **Stop** — in the row's Action menu or the tray — and Desktop recovers
-immediately, because the original name is restored. If the wrapper crashes
+immediately, because the original name is restored. If PBIRelay crashes
 mid-serve, the startup recovery prompt offers the same restoration; and closing
-the wrapper restores every served database on the way out.
+PBIRelay restores every served database on the way out.
 
 **Status:** Accepted, and load-bearing rather than incidental. Renaming at the
 source is what makes the alias the database's *real* name, so the XMLA endpoint
 can hand the engine every request untouched (see docs/serving-workflow.md and
 docs/http-bridge.md). The alternative — a transparent proxy rewriting names on
-the wire — was investigated and shelved; it makes the wrapper responsible for
+the wire — was investigated and shelved; it makes PBIRelay responsible for
 being byte-compatible with the engine's serialiser forever.
 
 
 ## 2. Unsigned Installer / Executable
-**Issue:** The `PBIPortWrapper.msi` installer and the executable are not
+**Issue:** The `PBIRelay.msi` installer and the executable are not
 code-signed with an Authenticode certificate.
 
 **Impact:** On first run, Windows SmartScreen shows *"Windows protected your PC"*
@@ -126,7 +126,7 @@ ask for.
 **Workaround:** Run once, as Administrator:
 
 ```powershell
-New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA" -Direction Inbound `
+New-NetFirewallRule -DisplayName "PBIRelay XMLA" -Direction Inbound `
   -Protocol TCP -LocalPort 55555 -Action Allow -Profile Domain,Private
 ```
 

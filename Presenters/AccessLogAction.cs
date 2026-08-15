@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// Opens the access log, from wherever it is offered — the tray and the dashboard
@@ -32,7 +32,7 @@ namespace PBIPortWrapper.Presenters
                     return;
                 }
 
-                string folder = Path.Combine(Path.GetTempPath(), "PBIPortWrapper");
+                string folder = Path.Combine(Path.GetTempPath(), "PBIRelay");
                 Directory.CreateDirectory(folder);
 
                 // Timestamped, so opening it twice does not fight the copy still open

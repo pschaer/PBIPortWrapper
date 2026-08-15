@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers the port → owning PID resolver (#94) end-to-end against a real socket:

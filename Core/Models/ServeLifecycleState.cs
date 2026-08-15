@@ -1,10 +1,9 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// The serve-lifecycle state of a single model, owned by
     /// <see cref="Services.ServeLifecycleMachine"/> (the v0.7 consolidation of the
-    /// auto-serve × serve-session seam — see
-    /// docs/HANDOVER-2026-07-24-serve-lifecycle.md).
+    /// auto-serve × serve-session seam).
     ///
     /// This is the *serve* axis only. Plain port forwarding (Off ↔ Forward, driven
     /// by AutoConnectService) stays a separate concern for now; unifying the two

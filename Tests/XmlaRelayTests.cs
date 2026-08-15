@@ -5,11 +5,11 @@ using System.Net;
 using System.Xml.Linq;
 using Microsoft.AnalysisServices;
 using Newtonsoft.Json;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     public class XmlaRelayTests
     {

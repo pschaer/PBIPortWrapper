@@ -1,6 +1,6 @@
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Idempotent, forward-only config migrations keyed off

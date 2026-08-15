@@ -1,7 +1,7 @@
-[![GitHub release](https://img.shields.io/github/v/release/pschaer/PBIPortWrapper)](https://github.com/pschaer/PBIPortWrapper/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/pschaer/PBIRelay)](https://github.com/pschaer/PBIRelay/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# PBI Port Wrapper
+# PBIRelay
 
 One stable HTTP XMLA endpoint over the Power BI Desktop models on this machine — so
 Excel, Tabular Editor and other XMLA clients can connect to a local semantic model by
@@ -12,26 +12,30 @@ as another user**.
 Provider=MSOLAP;Data Source=http://your-pc:55555/Sales;Initial Catalog=Sales
 ```
 
-## 🎯 Problem solved
+## 🎯 Why this exists
 
-Power BI Desktop's local Analysis Services engine is only intended for authoring:
+Power BI Desktop already lets external tools reach the model you have open right now —
+that is what **Analyze in Excel**, Tabular Editor and DAX Studio do. But that reach
+belongs to the *session*:
 
-- the **port** it listens on is random every session,
+- the **port** the engine listens on is random every session,
 - the **database name** is a per-session GUID,
 - and it only accepts the **logged-in Windows user**, over local TCP.
 
-PBI Port Wrapper *serves* a semantic model instead: it renames that model's database
-to a stable alias you choose, and publishes it on one HTTP XMLA endpoint at its own
-path:
+So the PivotTable you built against your model this morning is wired to an address that
+will not exist tomorrow. Restart Desktop and the workbook is broken — and you rewire it
+by hand, every time.
+
+PBIRelay *serves* a semantic model instead: it renames that model's database to
+a stable alias you choose, and publishes it on one HTTP XMLA endpoint at its own path:
 
 ```
 http://your-pc:55555/Sales      →  the Desktop instance holding Sales
 http://your-pc:55555/Finance    →  the Desktop instance holding Finance
 ```
 
-The address never changes, the name never changes, and callers authenticate to the
-wrapper as themselves — allowing you to host semantic models in a private, stable 
-and free way.
+The address never changes and the name never changes, so the workbook you built
+yesterday still works today — and your data never leaves your machine.
 
 ## 💡 Use Cases
 
@@ -46,7 +50,7 @@ A semantic model is handed to you for validation, comparison against reference d
 - ✅ **One endpoint, many models** — every served model on one port, addressed by name
 - ✅ **Stable database name** — a *Serve Alias* per model, applied to the real database
   while serving, so saved workbook connections survive Desktop restarts
-- ✅ **Works from other machines and other users** — the wrapper owns authentication;
+- ✅ **Works from other machines and other users** — PBIRelay owns authentication;
   the engine only ever talks to its owner
 - ✅ **HTTPS** — bring a certificate you already have; renewals are picked up without a
   restart
@@ -61,7 +65,7 @@ A semantic model is handed to you for validation, comparison against reference d
 - ✅ **Save .odc…** — hand a colleague a file they double-click to get an Excel
   PivotTable, no connection string typed or seen
 - ✅ **Auto-start with Windows** — starts silently to the tray
-- ✅ **Crash recovery** — if the wrapper dies mid-serve, the next start offers to
+- ✅ **Crash recovery** — if PBIRelay dies mid-serve, the next start offers to
   resume or restore the original database name
 
 > ⚠️ **While a model is served, Power BI Desktop shows "Cannot load model".** That is
@@ -80,11 +84,11 @@ No additional runtime to install — .NET is included in the build.
 
 **1. Install**, either way:
 
-- **Installer (recommended):** download `PBIPortWrapper.msi` and run it. It adds a
+- **Installer (recommended):** download `PBIRelay.msi` and run it. It adds a
   Start Menu entry and registers the app on the Power BI Desktop **External Tools**
   ribbon. The MSI is unsigned, so approve SmartScreen's *"More info → Run anyway"*.
   See [docs/installer.md](docs/installer.md).
-- **Portable ZIP:** extract and run `PBIPortWrapper.exe`.
+- **Portable ZIP:** extract and run `PBIRelay.exe`.
 
 **2. Name a model.** Start Power BI Desktop with your model; it appears in the grid.
 Type a name in the **Alias** column — this is the stable name clients will use.
@@ -110,7 +114,7 @@ The model's URL *is* the server address. The alias is the database on it.
 1. Data → Get Data → From Database → **From Analysis Services**
 2. Server name: `http://your-pc:55555/Sales`
 3. Authentication: **Use the following User Name and Password** — a Windows account
-   **on the machine running the wrapper** (see *Authentication* below)
+   **on the machine running PBIRelay** (see *Authentication* below)
 4. Select the database (it carries your alias)
 
 Or skip all of that: tray → the model → **Save .odc…**, and double-click the file.
@@ -122,7 +126,7 @@ answers a password challenge — with **Password sign-in** it fails with `(401)
 Unauthorized`. Use the connection-string option instead:
 
 ```
-Data Source=http://your-pc:55555/Sales;User ID=<windows account on the wrapper's machine>;Password=<password>;
+Data Source=http://your-pc:55555/Sales;User ID=<windows account on PBIRelay's machine>;Password=<password>;
 ```
 
 With **No authentication** the plain server box works.
@@ -141,7 +145,7 @@ certificate comes from, browse to it. The dialog says what it resolves to — su
 expiry — and refuses to switch encryption on until it resolves, rather than letting the
 endpoint fail to start later.
 
-The same settings live in `%APPDATA%\PBIPortWrapper\config.json`:
+The same settings live in `%APPDATA%\PBIRelay\config.json`:
 
 The usual case — the two files a Let's Encrypt client or a reverse proxy such as Nginx
 Proxy Manager gives you:
@@ -210,7 +214,7 @@ with.
 ### Who is using my models
 
 Every request is recorded in `access.csv`, next to the log in
-`%APPDATA%\PBIPortWrapper\` - timestamp, caller, client, model, what was asked, how it
+`%APPDATA%\PBIRelay\` - timestamp, caller, client, model, what was asked, how it
 went, how long it took. Tray -> **XMLA endpoint** -> **Access log**, or the dashboard's
 **XMLA endpoint...** dialog, opens it in Excel - as a copy, so that reading the log does
 not stop it recording.
@@ -245,7 +249,7 @@ One one-time step, as Administrator:
 **Open the firewall:**
 
 ```powershell
-New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA" -Direction Inbound `
+New-NetFirewallRule -DisplayName "PBIRelay XMLA" -Direction Inbound `
   -Protocol TCP -LocalPort 55555 -Action Allow -Profile Domain,Private
 ```
 
@@ -299,18 +303,18 @@ two always agree: each writes the same setting and the endpoint follows.
 ### Files
 
 ```
-%APPDATA%\PBIPortWrapper\config.json
-%APPDATA%\PBIPortWrapper\log.txt      (rotates at 5 MB, keeps 5 files)
-%APPDATA%\PBIPortWrapper\access.csv   (one line per request, when the access log is on)
+%APPDATA%\PBIRelay\config.json
+%APPDATA%\PBIRelay\log.txt      (rotates at 5 MB, keeps 5 files)
+%APPDATA%\PBIRelay\access.csv   (one line per request, when the access log is on)
 ```
 
 ### Install as a Power BI Desktop External Tool
 
 **The MSI does this for you.** For the portable ZIP:
 
-1. Copy `pbiportwrapper.pbitool.json` to
+1. Copy `pbirelay.pbitool.json` to
    `\Program Files (x86)\Common Files\Microsoft Shared\Power BI Desktop\External Tools`
-2. Edit its `path` to point at your `PBIPortWrapper.exe`
+2. Edit its `path` to point at your `PBIRelay.exe`
 3. Restart Power BI Desktop
 
 ## 🐛 Known limitations
@@ -323,11 +327,41 @@ two always agree: each writes the same setting and the endpoint follows.
 
 See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md) for the full write-ups.
 
+## 🚧 Non-goals
+
+Stated rather than discovered:
+
+- **Not a replacement** for Power BI Service or Report Server or a Fabric/Premium XMLA 
+  endpoint. This is local first and foremost.
+- **Not built for teams.** It serves one machine's models, and Desktop's engine is built
+  for a single user.
+- **Does not run without Power BI Desktop open**, with the model loaded.
+- **Desktop is unusable for editing while a model is served** — load-bearing rather than
+  incidental (limitation §1).
+- **It never authors models.** No measures, no roles, no transformations — it serves what
+  Desktop holds.
+- **No refresh scheduling.**
+
+## ⚖️ Licensing and supportability
+
+This is an unofficial, unsupported tool, and Power BI Desktop must stay open for it to
+serve anything.
+
+Reading a Desktop model with an external tool is something Microsoft built the External
+Tools integration for. **Serving that model to other people over a network is a different
+question**, and one only you can answer for your own situation: Desktop is licensed for
+individual authoring, and Microsoft sells Power BI Pro licenses, Power BI Report Server
+and Fabric capacity as the multi-user path. Check your own Power BI licensing before
+serving models to anyone but yourself.
+
+None of this is legal advice, and this tool is not a substitute for the Power BI Service,
+Report Server or a Fabric capacity.
+
 ## 🗺️ Roadmap
 
 ### v0.1 – v0.4 ✅
 Port-forwarding proxy: multi-instance support, per-instance settings, tray, structured
-logging, and the headless `PBIPortWrapper.Core` library.
+logging, and the headless `PBIRelay.Core` library.
 
 ### v0.5 / v0.5.1 ✅
 Serve sessions — stable database names via a per-model alias, crash recovery,
@@ -348,7 +382,7 @@ convergence, auto-start with Windows, `.odc` export.
 - Endpoint settings in the tray and the dashboard; password sign-in verified against
   Windows
 
-### v0.9.0 ✅ (this release)
+### v0.9.0 ✅
 - **HTTPS** — bring your own certificate, from a PEM pair, the Windows certificate
   store or a PFX; renewals picked up without a restart
 - **Read-only by default** — the endpoint refuses mutating commands unless you clear
@@ -356,10 +390,11 @@ convergence, auto-start with Windows, `.odc` export.
 - **Access logging** — who connected, to which model, when, and how it went
 - The URL reservation is gone: the firewall rule is now the only manual step
 
-### v1.0
-- Confidence rather than scope: HTTPS proven in use, including a certificate renewal
-- First-run experience (#37)
-- Release hardening
+### v1.0.0 ✅ (this release)
+- **Renamed to PBIRelay** — "Port" described a transport retired in v0.8, and "Wrapper"
+  said nothing about what the thing does
+- **No new scope.** A certificate renewal observed in real use, without a restart and
+  without the replaced file even changing its modification time
 
 ### v1.x
 - XMLA capture diagnostic (#133)
@@ -368,6 +403,10 @@ convergence, auto-start with Windows, `.odc` export.
 ## 📄 License
 
 MIT — see [LICENSE.txt](LICENSE.txt).
+
+The released `.zip` and `.msi` are self-contained, so they also carry Microsoft's
+Analysis Services client libraries and the .NET runtime under their own licences —
+see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## ⚠️ Disclaimer
 

@@ -2,16 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 using WinFormsTimer = System.Windows.Forms.Timer;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     // FILE SIZE: MAX 250 lines - enforced by build target
     /// <summary>
-    /// Single owner of the serve lifecycle (v0.7 consolidation — see
-    /// docs/HANDOVER-2026-07-24-serve-lifecycle.md). Turns each detection snapshot,
+    /// Single owner of the serve lifecycle (the v0.7 consolidation). Turns each
+    /// detection snapshot,
     /// grace-timer tick and application exit into <see cref="ServeLifecycleMachine"/>
     /// transitions and executes the resulting commands against ServeSessionService,
     /// grace timers and tray toasts. Replaces AutoServeController and the old

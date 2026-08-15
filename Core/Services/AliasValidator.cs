@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Grid-independent validation for stable database aliases. Single source of

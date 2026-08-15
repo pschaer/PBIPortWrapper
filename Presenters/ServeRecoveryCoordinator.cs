@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     // FILE SIZE: MAX 250 lines - enforced by build target
     /// <summary>
@@ -25,7 +25,7 @@ namespace PBIPortWrapper.Presenters
         private readonly Action<string> _log;
 
         private readonly HashSet<string> _prompted = new HashSet<string>();
-        // Recovery is a startup concern: only records that existed when the wrapper
+        // Recovery is a startup concern: only records that existed when PBIRelay
         // launched are crash leftovers. Records created later (this session's own
         // serving, incl. auto-serve) must never be treated as recovery (#102).
         private readonly HashSet<string> _initialRecordIds;
@@ -95,7 +95,7 @@ namespace PBIPortWrapper.Presenters
             if (canResume)
             {
                 var choice = MessageBox.Show(
-                    $"The wrapper closed while serving '{candidate.Record.Alias}' ({candidate.Instance.FileName}), " +
+                    $"PBIRelay closed while serving '{candidate.Record.Alias}' ({candidate.Instance.FileName}), " +
                     "and Power BI Desktop is still running with the renamed database.\n\n" +
                     "Yes – resume serving\n" +
                     "No – restore the original database name\n" +
@@ -110,7 +110,7 @@ namespace PBIPortWrapper.Presenters
             else
             {
                 var choice = MessageBox.Show(
-                    $"The wrapper closed while serving '{candidate.Record.Alias}' ({candidate.Instance.FileName}), " +
+                    $"PBIRelay closed while serving '{candidate.Record.Alias}' ({candidate.Instance.FileName}), " +
                     "and Power BI Desktop is still running with the renamed database. " +
                     "No serve profile exists for this model anymore.\n\n" +
                     "Restore the original database name now?",

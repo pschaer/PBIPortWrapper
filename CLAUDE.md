@@ -1,4 +1,4 @@
-# PBI Port Wrapper
+# PBIRelay
 
 One HTTP XMLA endpoint over the Power BI Desktop models on this machine. Serving a
 model renames its database to a stable alias and publishes it at its own path on that
@@ -25,27 +25,24 @@ same Windows user.
 
 ## Architecture direction (see docs/)
 
-- **[docs/HANDOVER-2026-07-26-v1.0-endpoint.md](docs/HANDOVER-2026-07-26-v1.0-endpoint.md)
-  — read first if resuming.** The v1.0 direction (epic #124): one HTTP XMLA endpoint,
-  models addressed by alias on per-model paths, forwarding retired. Carries the
-  relay-not-translator rule and the traps that cost time.
+- **The v1.0 direction (epic #124):** one HTTP XMLA endpoint, models addressed by alias
+  on per-model paths, forwarding retired (#126). **The relay translates nothing** — it
+  hands the engine every request as the client sent it.
 - [docs/http-bridge.md](docs/http-bridge.md) — the endpoint's implementation reference.
-- [docs/HANDOVER-2026-07-25-v0.7-release.md](docs/HANDOVER-2026-07-25-v0.7-release.md)
-  — the v0.7 release checklist (historical context).
-- [docs/HANDOVER-2026-07-24-serve-lifecycle.md](docs/HANDOVER-2026-07-24-serve-lifecycle.md)
-  — the serve-lifecycle consolidation that shaped v0.7 (historical context).
-
 - [docs/serving-workflow.md](docs/serving-workflow.md) — the serve-session design:
   serve profiles, serve-only sessions, DB rename at the source, experiments E1–E5.
 - [docs/tray-workflow.md](docs/tray-workflow.md) — the v0.7 tray-first workflow
   design ("local SSAS" persona, on-detection policies, auto-serve). Historical on
   vocabulary: it predates #126, so it still says Forward where the states are now
   only Off and Serve.
-- [docs/HANDOFF.md](docs/HANDOFF.md) — decisions log and research references.
-- `PBIPortWrapper.Core` holds the headless state/logic (extracted in v0.4); the UI
+- [docs/research/](docs/research/README.md) — archived December 2025 investigation
+  (salvaged from the retired Gitea wiki). **Read before proposing anything that
+  rewrites the wire: a full XMLA proxy and an ADOMD.NET proxy were both tried and
+  rejected there**, which is why the relay translates nothing.
+- `PBIRelay.Core` holds the headless state/logic (extracted in v0.4); the UI
   is a thin projection. Prefer moving logic toward Core over adding it to presenters.
 - `Services/XmlaProxyService.cs` is dormant (wire-level MITM, shelved) — don't
-  extend it; see HANDOFF.md before touching.
+  extend it; read [docs/research/](docs/research/README.md) before touching.
 
 ## Conventions
 
@@ -54,12 +51,12 @@ same Windows user.
   increment. A defect in what the PR claimed belongs on that PR's branch; something newly
   thought of gets its own. (Docs-only changes, having no runtime surface, may merge first.)
 - **A green suite says nothing about whether a UI reads correctly.** Render dialogs and
-  look at them — a scratch WinForms harness referencing `PBIPortWrapper.csproj` plus
+  look at them — a scratch WinForms harness referencing `PBIRelay.csproj` plus
   `PrintWindow` does it offline, without launching the app against live Power BI models.
 - **When a capability ships, sweep the docs *and* the UI strings for claims it falsifies.**
   Both have gone stale the same way: a heading updated and a rationale left behind.
 - MVP-style: MainForm wires services/presenters; presenters own behavior.
-- Config and logs persisted via `ConfigurationManager` under `%APPDATA%\PBIPortWrapper\`
+- Config and logs persisted via `ConfigurationManager` under `%APPDATA%\PBIRelay\`
   (`config.json`, `log.txt`) — not next to the executable, so the app runs from
   read-only locations like Program Files.
 - Private WIP goes to the Gitea remote; GitHub is the public origin for releases.

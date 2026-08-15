@@ -1,7 +1,7 @@
 using System;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Owns the XMLA endpoint's lifetime, so its settings can be changed while the app

@@ -1,6 +1,6 @@
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// The listener half of the XMLA endpoint, as <see cref="XmlaEndpointCoordinator"/>

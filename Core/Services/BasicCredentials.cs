@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Reads an HTTP Basic <c>Authorization</c> header (#132).

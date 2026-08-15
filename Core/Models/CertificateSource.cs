@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// Where the endpoint's certificate comes from (#132).
@@ -73,7 +73,7 @@ namespace PBIPortWrapper.Models
 
         /// <summary>
         /// Which source the configuration currently describes, decided the same way
-        /// <see cref="PBIPortWrapper.Services.CertificateResolver"/> decides - so what
+        /// <see cref="PBIRelay.Services.CertificateResolver"/> decides - so what
         /// the dialog shows is what would actually be served.
         /// </summary>
         public static CertificateSource SourceOf(HttpBridgeConfig config)

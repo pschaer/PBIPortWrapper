@@ -6,9 +6,9 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using Microsoft.AnalysisServices;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Relays XMLA SOAP requests from the HTTP endpoint to the local Power BI Desktop
@@ -73,7 +73,7 @@ namespace PBIPortWrapper.Services
             {
                 _logger?.LogWarning("XmlaEndpoint", $"Rejected {verb} on '{requestPath}': no models are served.");
                 return CreateSoapFault("Server",
-                    "No models are currently served. Serve a model in PBI Port Wrapper first.");
+                    "No models are currently served. Serve a model in PBIRelay first.");
             }
 
             if (requested.Length == 0)
@@ -94,7 +94,7 @@ namespace PBIPortWrapper.Services
             {
                 _logger?.LogWarning("XmlaEndpoint", $"Rejected {verb} for '{requested}': not served.");
                 return CreateSoapFault("Server",
-                    $"No served model named '{requested}'. Serve that model in PBI Port Wrapper first. " +
+                    $"No served model named '{requested}'. Serve that model in PBIRelay first. " +
                     AvailableModels(served));
             }
 
@@ -110,7 +110,7 @@ namespace PBIPortWrapper.Services
                     $"Refused {mutation} on '{model.Alias}': the model is served read-only.");
                 return CreateSoapFault("Client",
                     $"'{model.Alias}' is served read-only, so it refused {mutation}. " +
-                    "Queries are unaffected. Clear Read-only for this model in PBI Port Wrapper to allow changes.");
+                    "Queries are unaffected. Clear Read-only for this model in PBIRelay to allow changes.");
             }
 
             try

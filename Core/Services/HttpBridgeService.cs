@@ -9,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography.X509Certificates;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// HTTP front end for the XMLA endpoint (#77): accepts SOAP XMLA over HTTP and
@@ -342,7 +342,7 @@ namespace PBIPortWrapper.Services
                     // Challenge rather than just refuse: a client that has not sent
                     // credentials yet is asking to be told how, and one that mistyped a
                     // password gets another prompt instead of an error.
-                    context.Response.Headers.WWWAuthenticate = "Basic realm=\"PBI Port Wrapper\"";
+                    context.Response.Headers.WWWAuthenticate = "Basic realm=\"PBIRelay\"";
                     await WriteAsync(context, StatusCodes.Status401Unauthorized, "text/plain",
                         "Invalid user name or password.").ConfigureAwait(false);
                     return;

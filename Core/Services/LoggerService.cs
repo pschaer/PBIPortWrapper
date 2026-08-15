@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public enum LogLevel
     {
@@ -55,7 +55,7 @@ namespace PBIPortWrapper.Services
             _minimumLevel = minimumLevel;
             _logDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PBIPortWrapper"
+                "PBIRelay"
             );
 
             Directory.CreateDirectory(_logDirectory);

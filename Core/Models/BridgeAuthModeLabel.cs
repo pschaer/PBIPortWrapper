@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// The user-facing wording for <see cref="BridgeAuthMode"/>, in one place so every

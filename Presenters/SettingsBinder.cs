@@ -1,8 +1,8 @@
 using System;
 using System.Windows.Forms;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// Wires the top-panel settings checkboxes (Minimize to Tray, Start with Windows)

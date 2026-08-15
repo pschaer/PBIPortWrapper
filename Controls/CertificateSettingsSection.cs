@@ -2,10 +2,10 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Controls
+namespace PBIRelay.Controls
 {
     /// <summary>
     /// The encryption settings (#132 step 3): the switch, where the certificate comes

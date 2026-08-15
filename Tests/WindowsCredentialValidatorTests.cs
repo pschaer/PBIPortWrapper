@@ -1,8 +1,8 @@
 using System;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// The endpoint's Basic mode is only as good as this check, because HttpListener
@@ -16,7 +16,7 @@ namespace PBIPortWrapper.Core.Tests
         public void AnAccountThatDoesNotExist_IsRejected()
         {
             Assert.False(WindowsCredentialValidator.IsValid(
-                "pbi-port-wrapper-no-such-account-" + Guid.NewGuid().ToString("N"), "any-password"));
+                "pbirelay-no-such-account-" + Guid.NewGuid().ToString("N"), "any-password"));
         }
 
         [Fact]

@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>The certificate the endpoint should serve, or why there isn't one.</summary>
     public sealed class CertificateResolution

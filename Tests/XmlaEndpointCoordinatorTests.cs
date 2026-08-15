@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers the endpoint's runtime lifetime (#125): settings change while the app
@@ -19,7 +19,7 @@ namespace PBIPortWrapper.Core.Tests
 
         public XmlaEndpointCoordinatorTests()
         {
-            _tempDir = Path.Combine(Path.GetTempPath(), "PBIPortWrapperTests", Guid.NewGuid().ToString("N"));
+            _tempDir = Path.Combine(Path.GetTempPath(), "PBIRelayTests", Guid.NewGuid().ToString("N"));
             _config = new ConfigService(new ConfigurationManager(_tempDir));
             _config.Load();
         }

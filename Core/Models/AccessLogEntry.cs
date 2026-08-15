@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// One request through the XMLA endpoint, as the access log records it (#128).

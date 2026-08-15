@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Management;
 using System.Windows.Automation;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper
+namespace PBIRelay
 {
     /// <summary>
     /// The best available unsaved-changes probe for Desktop 2.155 (#57 findings):

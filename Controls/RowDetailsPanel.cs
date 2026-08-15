@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Drawing;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
-using PBIPortWrapper.Presenters;
+using PBIRelay.Models;
+using PBIRelay.Services;
+using PBIRelay.Presenters;
 
-namespace PBIPortWrapper.Controls
+namespace PBIRelay.Controls
 {
     public class RowDetailsPanel : UserControl
     {

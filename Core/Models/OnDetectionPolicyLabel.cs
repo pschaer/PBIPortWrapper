@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// The user-facing labels for <see cref="OnDetectionPolicy"/>, shared by the tray

@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Language-independent identification of Power BI Desktop's Quick Access

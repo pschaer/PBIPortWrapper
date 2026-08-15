@@ -1,9 +1,9 @@
 ﻿using System;
 using System.IO;
 using Newtonsoft.Json;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public class ConfigurationManager
     {
@@ -14,7 +14,7 @@ namespace PBIPortWrapper.Services
         public ConfigurationManager()
             : this(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PBIPortWrapper"))
+                "PBIRelay"))
         {
         }
 

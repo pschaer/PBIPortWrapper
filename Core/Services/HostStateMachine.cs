@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Pure, UI-free logic for a model's presented state: what detection should aim

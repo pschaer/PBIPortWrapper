@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// Tray balloon notifications for the auto-host workflow (#85b). NotifyIcon

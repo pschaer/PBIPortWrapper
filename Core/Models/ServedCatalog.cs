@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// One model currently reachable through the XMLA endpoint: the stable alias a

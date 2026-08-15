@@ -6,9 +6,9 @@ using System.Linq;
 using System.Management;
 using System.Text;
 using Microsoft.AnalysisServices.AdomdClient;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public class PowerBIDetector
     {
@@ -96,7 +96,7 @@ namespace PBIPortWrapper.Services
         /// name for a workspace. Matches the workspace's AS <paramref name="port"/> to
         /// the owning msmdsrv process; this works even when the engine runs elevated
         /// (e.g. Desktop launched from an elevated installer), where its command line
-        /// is unreadable to a non-elevated wrapper and path matching would fail (#94).
+        /// is unreadable to a non-elevated PBIRelay and path matching would fail (#94).
         /// </summary>
         private (int processId, int parentProcessId, string friendlyName) GetProcessInfo(int port)
         {

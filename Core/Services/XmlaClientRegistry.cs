@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Remembers which XMLA clients have been seen since the endpoint started, so each

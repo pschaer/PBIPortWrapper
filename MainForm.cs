@@ -6,12 +6,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
-using PBIPortWrapper.Presenters;
-using PBIPortWrapper.Controls;
+using PBIRelay.Models;
+using PBIRelay.Services;
+using PBIRelay.Presenters;
+using PBIRelay.Controls;
 
-namespace PBIPortWrapper
+namespace PBIRelay
 {
     public partial class MainForm : Form
     {
@@ -411,7 +411,7 @@ namespace PBIPortWrapper
             {
                 Hide();
                 notifyIcon.Visible = true;
-                notifyIcon.ShowBalloonTip(3000, "PBI Port Wrapper", "Minimised to tray", ToolTipIcon.Info);
+                notifyIcon.ShowBalloonTip(3000, "PBIRelay", "Minimised to tray", ToolTipIcon.Info);
             }
         }
         

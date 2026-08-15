@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// What the XMLA endpoint is doing right now, as one immutable snapshot (#125).

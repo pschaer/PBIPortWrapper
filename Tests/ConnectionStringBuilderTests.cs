@@ -1,7 +1,7 @@
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>Covers the connection-string formatting helpers (#85).</summary>
     public sealed class ConnectionStringBuilderTests

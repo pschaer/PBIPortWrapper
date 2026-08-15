@@ -3,9 +3,9 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper
+namespace PBIRelay
 {
     internal static class Program
     {
@@ -15,11 +15,11 @@ namespace PBIPortWrapper
         [STAThread]
         static void Main(string[] args)
         {
-            // #64: concurrent wrappers share config.json/log.txt without
+            // #64: concurrent PBIRelay processes share config.json/log.txt without
             // coordination and compete for the same fixed ports - allow only one
             // instance and front the existing one instead. The mutex handle is
             // held for the process lifetime; the kernel object disappears with
-            // the process, so a crashed wrapper never blocks the next start.
+            // the process, so a crashed PBIRelay never blocks the next start.
             using var singleInstance = AcquireSingleInstanceMutex(out bool isFirstInstance);
             if (!isFirstInstance)
             {
@@ -28,7 +28,7 @@ namespace PBIPortWrapper
             }
 
             // #87: --silent makes the app start hidden in the tray (used by the
-            // auto-start registry key so the wrapper doesn't pop a window at login).
+            // auto-start registry key so PBIRelay doesn't pop a window at login).
             bool startSilent = args.Any(a => a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
 
             // Set up global exception handlers
@@ -44,12 +44,12 @@ namespace PBIPortWrapper
         {
             try
             {
-                return new Mutex(initiallyOwned: true, @"Global\PBIPortWrapper_SingleInstance", out isFirstInstance);
+                return new Mutex(initiallyOwned: true, @"Global\PBIRelay_SingleInstance", out isFirstInstance);
             }
             catch (UnauthorizedAccessException)
             {
                 // The mutex exists but belongs to another session/user - still a
-                // running wrapper (ports are machine-wide, so this counts too).
+                // running PBIRelay (ports are machine-wide, so this counts too).
                 isFirstInstance = false;
                 return null;
             }
@@ -74,8 +74,8 @@ namespace PBIPortWrapper
             // No window to front (minimized to tray, or the other instance runs
             // in another session) - at least say why nothing opened.
             MessageBox.Show(
-                "PBI Port Wrapper is already running - check the system tray.",
-                "PBI Port Wrapper", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "PBIRelay is already running - check the system tray.",
+                "PBIRelay", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private const int SW_RESTORE = 9;
@@ -108,7 +108,7 @@ namespace PBIPortWrapper
 
             MessageBox.Show(
                 errorMessage,
-                "PBI Port Wrapper - Error",
+                "PBIRelay - Error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
             );

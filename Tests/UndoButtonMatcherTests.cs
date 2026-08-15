@@ -1,7 +1,7 @@
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers the language-independent Undo-button match (#82 solution A): the probe

@@ -3,15 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36623.8
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PBIPortWrapper", "PBIPortWrapper.csproj", "{562E2036-3589-413A-AB03-9E588FC40527}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PBIRelay", "PBIRelay.csproj", "{562E2036-3589-413A-AB03-9E588FC40527}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{FBF56CC3-7AE6-AD2D-3F14-7F97FD322CD6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PBIPortWrapper.Core", "Core\PBIPortWrapper.Core.csproj", "{DC5541BB-10BC-4D14-AE02-85342F55C321}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PBIRelay.Core", "Core\PBIRelay.Core.csproj", "{DC5541BB-10BC-4D14-AE02-85342F55C321}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PBIPortWrapper.Core.Tests", "Tests\PBIPortWrapper.Core.Tests.csproj", "{44A49738-0FC7-4CFB-A657-256D529C2C35}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PBIRelay.Core.Tests", "Tests\PBIRelay.Core.Tests.csproj", "{44A49738-0FC7-4CFB-A657-256D529C2C35}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

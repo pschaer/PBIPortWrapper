@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public enum ServeEndReason
     {
@@ -13,7 +13,7 @@ namespace PBIPortWrapper.Services
     }
 
     /// <summary>
-    /// A recovery record matched to a live instance (#58): the wrapper crashed
+    /// A recovery record matched to a live instance (#58): PBIRelay crashed
     /// mid-serve and Desktop is still running with the database (possibly) renamed.
     /// The UI offers "restore original name" or "resume serving".
     /// </summary>
@@ -74,7 +74,7 @@ namespace PBIPortWrapper.Services
     /// preflight → persist recovery record → rename DB to alias → start proxy, and
     /// the two exits (user Stop restores the name; Desktop closing needs no restore,
     /// per experiment E5). Holds active sessions in memory; the recovery record in
-    /// config outlives a wrapper crash and is consumed by startup recovery (#58).
+    /// config outlives a PBIRelay crash and is consumed by startup recovery (#58).
     /// </summary>
     public class ServeSessionService
     {

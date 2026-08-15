@@ -1,6 +1,6 @@
 using System.Windows.Forms;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     public class DetailRowManager
     {

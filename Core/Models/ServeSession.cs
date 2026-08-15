@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// In-memory state of one active serve session (#57).

@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// The tray-toast surface the <see cref="ServeLifecycleCoordinator"/> drives.

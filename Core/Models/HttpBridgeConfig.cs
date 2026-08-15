@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// Remote-leg authentication for the XMLA-over-HTTP bridge (#77).
@@ -23,7 +23,7 @@ namespace PBIPortWrapper.Models
 
         /// <summary>
         /// HTTP Basic, checked against a Windows account on this machine by
-        /// <see cref="PBIPortWrapper.Services.WindowsCredentialValidator"/> — the
+        /// <see cref="PBIRelay.Services.WindowsCredentialValidator"/> — the
         /// listener decodes the header but does not verify the password, so the check
         /// is ours. Works on a workgroup: give the remote user a local account here.
         /// Credentials are base64 over the wire, so this wants TLS outside a trusted

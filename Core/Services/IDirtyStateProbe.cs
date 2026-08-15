@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// What a probe can conclude about unsaved changes in a Desktop instance.

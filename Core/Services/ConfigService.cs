@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public class ConfigService
     {
@@ -285,7 +285,7 @@ namespace PBIPortWrapper.Services
 
         /// <summary>
         /// Toggles the auto-start-with-Windows setting (#87). Keeps the HKCU
-        /// Run registry key in sync so the wrapper launches at login.
+        /// Run registry key in sync so PBIRelay launches at login.
         /// </summary>
         /// <summary>Whether each request is recorded in access.csv (#128).</summary>
         public void SetAccessLog(bool enabled)

@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using PBIPortWrapper.Controls;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Controls;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     public class RowDetailsViewManager
     {

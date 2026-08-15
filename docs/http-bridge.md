@@ -11,9 +11,9 @@ the **E1 gap** in [serving-workflow.md](serving-workflow.md).
 
 The bridge exposes an XMLA-over-HTTP endpoint instead:
 
-- **Remote leg** (client → bridge): SOAP XMLA over HTTP. The wrapper owns authentication,
+- **Remote leg** (client → bridge): SOAP XMLA over HTTP. PBIRelay owns authentication,
   so LAN callers authenticate as themselves.
-- **Local leg** (bridge → `msmdsrv`): the wrapper is already the model owner, so it just
+- **Local leg** (bridge → `msmdsrv`): PBIRelay is already the model owner, so it just
   talks to the engine as itself — the same thing serving has done since v0.5.
 
 ## 2. It is a relay, not a translator
@@ -42,8 +42,8 @@ both `Discover` and `Execute` — the only two XMLA verbs. The library handles S
 framing and content-type negotiation internally.
 
 **Why this matters:** the alternative is parsing the request, calling
-`GetSchemaDataSet`, and re-serialising a rowset with a hand-built XSD. That makes the
-wrapper responsible for being byte-compatible with the engine's serialiser across ~50
+`GetSchemaDataSet`, and re-serialising a rowset with a hand-built XSD. That makes
+PBIRelay responsible for being byte-compatible with the engine's serialiser across ~50
 DISCOVER/MDSCHEMA/TMSCHEMA rowsets plus the MDX cellset format — chasing MSOLAP error
 messages forever (element ordering, `xsd:sequence`, lowercase booleans, `{GUID}` brace
 formatting, session headers, …). A first attempt down that road took 24 commits to get
@@ -83,8 +83,7 @@ fan-out, the rowset merge, the canonical retry and the fan-out session stripping
 with them the only place the relay ever touched a response. **The no-rewriting rule is
 now absolute in both directions.**
 
-The alternatives are weighed in
-[HANDOVER-2026-07-26-v1.0-endpoint.md](HANDOVER-2026-07-26-v1.0-endpoint.md); the short
+The alternatives were weighed when this design was chosen; the short
 version is that owning session identity means rewriting response headers plus session
 lifecycle forever, and a port per model reinstates the per-model network plumbing this
 design exists to remove.
@@ -174,7 +173,7 @@ URLs shown to users.
 A model's own URL is on its tray submenu as **Copy endpoint URL**, offered while the
 model is served — which is exactly when that URL resolves.
 
-Everything is still stored in `%APPDATA%\PBIPortWrapper\config.json` and can be edited
+Everything is still stored in `%APPDATA%\PBIRelay\config.json` and can be edited
 there instead:
 
 ```json
@@ -245,7 +244,7 @@ the SOAP fault names both the command and how to allow it.
 ### Access logging (#128)
 
 One CSV line per request in `access.csv`, next to `log.txt` in
-`%APPDATA%\PBIPortWrapper\`. On by default.
+`%APPDATA%\PBIRelay\`. On by default.
 
 ```
 Timestamp,Caller,RemoteAddress,Client,Model,Verb,Detail,Outcome,DurationMs
@@ -294,7 +293,7 @@ show one setting, so neither can drift from the other.
 **Opening it opens a copy.** Excel holds an open workbook for as long as its window is
 open, and a held file cannot be appended to - so opening the live access log to read it
 would stop it recording the very requests you opened it to look at. Both surfaces
-therefore copy it to `%TEMP%\PBIPortWrapper\` first and open that. The snapshot does not
+therefore copy it to `%TEMP%\PBIRelay\` first and open that. The snapshot does not
 update, which is the correct trade: a log you can read and that keeps recording beats a
 live view that costs you the data.
 
@@ -362,7 +361,7 @@ The endpoint binds every address as an ordinary user, so the only thing standing
 a remote client and the port is the firewall. Once, as Administrator:
 
 ```powershell
-New-NetFirewallRule -DisplayName "PBI Port Wrapper XMLA Bridge" -Direction Inbound `
+New-NetFirewallRule -DisplayName "PBIRelay XMLA Bridge" -Direction Inbound `
   -Protocol TCP -LocalPort 55555 -Action Allow -Profile Domain,Private
 ```
 
@@ -382,8 +381,8 @@ failure than one that is not yet encrypted.
   "Enabled": true, "Port": 55555, "AuthMode": 2,
   "UseHttps": true,
   "CertificateThumbprint": "",
-  "CertificatePath": "C:\\Users\\you\\AppData\\Roaming\\PBIPortWrapper\\certs\\fullchain.pem",
-  "CertificateKeyPath": "C:\\Users\\you\\AppData\\Roaming\\PBIPortWrapper\\certs\\privkey.pem"
+  "CertificatePath": "C:\\Users\\you\\AppData\\Roaming\\PBIRelay\\certs\\fullchain.pem",
+  "CertificateKeyPath": "C:\\Users\\you\\AppData\\Roaming\\PBIRelay\\certs\\privkey.pem"
 }
 ```
 

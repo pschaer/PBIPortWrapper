@@ -1,8 +1,8 @@
 ﻿using Newtonsoft.Json;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     public class ProxyConfigurationTests
     {

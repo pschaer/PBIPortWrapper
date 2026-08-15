@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     public enum RowActionType { Remove }
 

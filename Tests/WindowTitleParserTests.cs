@@ -1,7 +1,7 @@
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers model-name extraction from the Desktop window title (#94), which lost

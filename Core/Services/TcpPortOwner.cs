@@ -1,12 +1,12 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Maps a local TCP listening port to the process that owns it, via the IP Helper
     /// API (GetExtendedTcpTable). When a Power BI Desktop engine runs elevated (e.g.
-    /// Desktop launched from an elevated context), a non-elevated wrapper can't read
+    /// Desktop launched from an elevated context), a non-elevated PBIRelay can't read
     /// its command line to match it to a workspace by path (#94). Matching by the
     /// workspace's AS port works regardless of elevation; this resolves that port to
     /// the owning msmdsrv PID.

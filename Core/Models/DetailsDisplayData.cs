@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     public class DetailsDisplayData
     {

@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// Whether a model is being served (#126). Forwarding was the third state on this

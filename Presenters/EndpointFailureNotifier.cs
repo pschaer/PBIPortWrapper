@@ -1,8 +1,8 @@
 using System;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     // FILE SIZE: MAX 250 lines - enforced by build target
     /// <summary>

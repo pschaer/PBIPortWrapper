@@ -1,9 +1,9 @@
 using System;
 using System.IO;
 using System.Text;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public interface IAccessLog
     {

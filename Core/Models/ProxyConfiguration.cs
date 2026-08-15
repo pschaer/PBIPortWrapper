@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     // Top-level FixedPort/AllowNetworkAccess were dead v0.1 leftovers (#59), and the
     // per-rule ones went with forwarding (#126). Newtonsoft ignores unknown members,
@@ -42,7 +42,7 @@ namespace PBIPortWrapper.Models
 
         /// <summary>
         /// Crash anchors for serve sessions (#57): present only while a session is
-        /// active (or after a wrapper crash mid-session). Absent in pre-v0.5 config
+        /// active (or after a PBIRelay crash mid-session). Absent in pre-v0.5 config
         /// files, which load unchanged.
         /// </summary>
         public List<ServeRecoveryRecord> ServeRecoveryRecords { get; set; } = new List<ServeRecoveryRecord>();

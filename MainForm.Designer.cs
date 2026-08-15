@@ -1,4 +1,4 @@
-﻿namespace PBIPortWrapper
+﻿namespace PBIRelay
 {
     partial class MainForm
     {
@@ -113,7 +113,7 @@
             this.labelTitle.Name = "labelTitle";
             this.labelTitle.Size = new System.Drawing.Size(206, 25);
             this.labelTitle.TabIndex = 0;
-            this.labelTitle.Text = "PBI Port Wrapper";
+            this.labelTitle.Text = "PBIRelay";
             // 
             // panelBottom
             // 
@@ -185,7 +185,7 @@
             // notifyIcon
             // 
             this.notifyIcon.ContextMenuStrip = this.contextMenuStripTray;
-            this.notifyIcon.Text = "PBI Port Wrapper";
+            this.notifyIcon.Text = "PBIRelay";
             this.notifyIcon.Visible = true;
             this.notifyIcon.DoubleClick += new System.EventHandler(this.NotifyIcon_DoubleClick);
             // 
@@ -268,7 +268,7 @@
             this.Controls.Add(this.panelBottom);
             this.Controls.Add(this.panelTop);
             this.Name = "MainForm";
-            this.Text = "PBI Port Wrapper";
+            this.Text = "PBIRelay";
             this.panelTop.ResumeLayout(false);
             this.panelTop.PerformLayout();
             this.panelBottom.ResumeLayout(false);

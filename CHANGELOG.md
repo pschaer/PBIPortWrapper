@@ -1,6 +1,36 @@
 # Changelog
 
-All notable changes to PBI Port Wrapper will be documented in this file.
+All notable changes to PBIRelay will be documented in this file. Releases up to and
+including 0.9.0 shipped under the project's former name, PBI Port Wrapper, and their
+entries below say so deliberately.
+
+## [1.0.0] - 2026-08-16
+
+No new scope over 0.9.0. The project got a name that describes it, and the HTTPS design
+was finally proven in use rather than in tests. Scope earned the numbers up to here; use
+earned this one.
+
+### Changed
+- **Renamed to PBIRelay** (#174, #184). "Port" described a transport retired in 0.8
+  (#126) — there is no forwarded port and no fixed port per model. Namespaces, assembly
+  names, the installer, the External Tools manifest and the configuration folder all
+  move. `%APPDATA%\PBIPortWrapper\` becomes `%APPDATA%\PBIRelay\`, and **nothing
+  migrates it**: copy `config.json` across by hand and repoint any absolute paths inside
+  it. The MSI keeps its UpgradeCode, so an existing install is upgraded in place rather
+  than installed beside the old one.
+- The README now states what the tool is for, what it is deliberately not, and the
+  licensing posture toward Microsoft (#173, #175).
+
+### Fixed
+- The MIT licence in the installer rendered with a gap after every line of the source
+  file, because each hard wrap had become its own paragraph. It now flows properly.
+
+### Verified
+- **A certificate renewal, in use** — the one thing 1.0 was waiting on. A PEM pair
+  replaced in place was picked up inside the five-minute recheck window, with no
+  restart, no configuration change and no downtime. The replaced file kept its old
+  modification time, so this also proved the reload does not depend on timestamps: it
+  re-reads on a timer and compares thumbprints.
 
 ## [0.9.0] - 2026-07-27
 

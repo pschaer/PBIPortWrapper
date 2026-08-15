@@ -1,8 +1,8 @@
 ﻿using System.Xml.Linq;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     public class XmlaCommandClassifierTests
     {

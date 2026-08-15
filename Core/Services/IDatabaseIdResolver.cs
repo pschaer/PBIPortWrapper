@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Resolves the database ID of the (single) workspace database on a local

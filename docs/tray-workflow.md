@@ -113,7 +113,7 @@ from it) keeps working across Desktop restarts — the core win.
 and quick actions:
 
 ```
-PBI Port Wrapper
+PBIRelay
 ├─ Sales            ● Serving  :55555
 │    ├─ Stop serving
 │    ├─ Save .odc…
@@ -161,7 +161,7 @@ Each is one PR, in dependency order:
 
 1. **Core — serve-profile policy model + `Off/Forward/Serve` state machine.** Extend
    the profile with `onDetection`; model the tri-state transitions headless in
-   `PBIPortWrapper.Core`, unit-tested. Foundation for everything below.
+   `PBIRelay.Core`, unit-tested. Foundation for everything below.
 2. **Tray-first surface.** Tray menu listing hosted models with per-model state +
    quick actions, and the toast set (new-model, grace period, ready, edit-conflict).
    The new primary UX.

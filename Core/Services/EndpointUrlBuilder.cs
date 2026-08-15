@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Builds the URL a client uses to reach one served model through the XMLA

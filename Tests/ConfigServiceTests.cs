@@ -1,10 +1,10 @@
 ﻿using System;
 using System.IO;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers the single-writer contract of ConfigService (#62): every mutation goes
@@ -18,7 +18,7 @@ namespace PBIPortWrapper.Core.Tests
 
         public ConfigServiceTests()
         {
-            _tempDir = Path.Combine(Path.GetTempPath(), "PBIPortWrapperTests", Guid.NewGuid().ToString("N"));
+            _tempDir = Path.Combine(Path.GetTempPath(), "PBIRelayTests", Guid.NewGuid().ToString("N"));
             _service = new ConfigService(new ConfigurationManager(_tempDir));
             _service.Load();
         }

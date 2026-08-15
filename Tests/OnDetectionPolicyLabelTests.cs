@@ -1,8 +1,8 @@
 ﻿using System;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// The shared OnDetection labels back the tray submenu and the grid dropdown (#88),

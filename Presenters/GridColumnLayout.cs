@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     // FILE SIZE: MAX 250 lines - enforced by build target
     /// <summary>

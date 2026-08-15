@@ -1,10 +1,10 @@
 ﻿using System;
 using System.IO;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>
     /// Covers ConfigService.SetOnDetection: persisting a model's OnDetection policy

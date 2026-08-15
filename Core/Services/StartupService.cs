@@ -1,17 +1,17 @@
 using System;
 using Microsoft.Win32;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Manages the Windows auto-start registry entry (#87). Reads and writes
-    /// HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run so the wrapper
+    /// HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run so PBIRelay
     /// launches at login — no admin rights required.
     /// </summary>
     public static class StartupService
     {
         private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        private const string ValueName = "PBIPortWrapper";
+        private const string ValueName = "PBIRelay";
 
         /// <summary>
         /// Returns true if the auto-start registry key is present.
@@ -23,7 +23,7 @@ namespace PBIPortWrapper.Services
         }
 
         /// <summary>
-        /// Creates (or updates) the Run key so the wrapper starts at login.
+        /// Creates (or updates) the Run key so PBIRelay starts at login.
         /// The entry points at the current exe with <c>--silent</c> so the
         /// app starts hidden in the tray.
         /// </summary>

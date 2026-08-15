@@ -4,10 +4,10 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     public class ViewEventCoordinator
     {

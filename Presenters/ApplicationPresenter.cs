@@ -5,11 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using PBIPortWrapper.Services;
-using PBIPortWrapper.Models;
-// using PBIPortWrapper.Forms; // No longer needed here as RowDetails is now managed by ViewManager
+using PBIRelay.Services;
+using PBIRelay.Models;
+// using PBIRelay.Forms; // No longer needed here as RowDetails is now managed by ViewManager
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     public class ApplicationPresenter
     {
@@ -61,8 +61,8 @@ namespace PBIPortWrapper.Presenters
 
             // XMLA endpoint (#77): stays off unless enabled in config. The coordinator
             // owns its lifetime from here on, so settings can change while running
-            // (#125); binding failures surface as status and are never fatal — the
-            // wrapper's core job must not depend on it.
+            // (#125); binding failures surface as status and are never fatal —
+            // PBIRelay's core job must not depend on it.
             // access.csv sits beside log.txt, so the two are found together and the
             // app keeps one idea of where it writes things (#128).
             AccessLog = new AccessLog(
@@ -127,7 +127,7 @@ namespace PBIPortWrapper.Presenters
             get
             {
                 var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-                return $"PBI Port Wrapper v{version?.Major}.{version?.Minor}";
+                return $"PBIRelay v{version?.Major}.{version?.Minor}";
             }
         }
 

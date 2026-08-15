@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     /// <summary>
     /// User-facing labels for <see cref="HostAction"/>, shared by the tray menu and the

@@ -2,11 +2,11 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Presenters;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Presenters;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Controls
+namespace PBIRelay.Controls
 {
     /// <summary>
     /// The XMLA endpoint's settings in one place (#125): what it is doing, the switch,

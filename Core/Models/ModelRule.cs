@@ -1,7 +1,7 @@
 ﻿using System;
 using Newtonsoft.Json;
 
-namespace PBIPortWrapper.Models
+namespace PBIRelay.Models
 {
     public class ModelRule
     {

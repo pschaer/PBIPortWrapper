@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
-using PBIPortWrapper.Services;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// The "Save .odc…" flow (#86), shared by the tray menu and the row details panel

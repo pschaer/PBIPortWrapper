@@ -1,4 +1,4 @@
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Formats the connection coordinates external tools use (#85). Pure string

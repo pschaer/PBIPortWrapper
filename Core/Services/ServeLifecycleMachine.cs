@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Context the <see cref="ServeLifecycleMachine"/> needs to decide a
@@ -68,8 +68,8 @@ namespace PBIPortWrapper.Services
     }
 
     /// <summary>
-    /// The single, pure serve-lifecycle transition table (v0.7 consolidation — see
-    /// docs/HANDOVER-2026-07-24-serve-lifecycle.md). Given a model's current
+    /// The single, pure serve-lifecycle transition table (the v0.7 consolidation).
+    /// Given a model's current
     /// <see cref="ServeLifecycleState"/>, a <see cref="ServeTrigger"/>, and the
     /// <see cref="LifecycleContext"/>, it returns the next state and the commands the
     /// coordinator must execute. No proxies, renames, timers, or UI here — only the

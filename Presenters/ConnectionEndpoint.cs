@@ -2,10 +2,10 @@
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     /// <summary>
     /// Builds the connection string external tools use for a hosted model,

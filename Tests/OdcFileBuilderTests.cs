@@ -1,7 +1,7 @@
-﻿using PBIPortWrapper.Services;
+﻿using PBIRelay.Services;
 using Xunit;
 
-namespace PBIPortWrapper.Core.Tests
+namespace PBIRelay.Core.Tests
 {
     /// <summary>Covers the .odc (Office Data Connection) file generation (#86).</summary>
     public sealed class OdcFileBuilderTests

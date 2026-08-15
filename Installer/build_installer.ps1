@@ -1,10 +1,10 @@
 <#
-    Builds the PBI Port Wrapper MSI.
+    Builds the PBIRelay MSI.
 
     1. Publishes the app as a single-file, self-contained win-x64 build (the same
        convention the release zip uses) into .\Publish.
     2. Builds the WiX package (WixToolset.Sdk + UI extension are restored from NuGet).
-    3. Copies the resulting MSI to .\Output\PBIPortWrapper.msi.
+    3. Copies the resulting MSI to .\Output\PBIRelay.msi.
 
     Run from anywhere:  powershell -File Installer\build_installer.ps1
 #>
@@ -18,12 +18,12 @@ $installerRoot = $PSScriptRoot
 $projectRoot   = (Resolve-Path (Join-Path $installerRoot "..")).Path
 $publishDir    = Join-Path $installerRoot "Publish"
 $outputDir     = Join-Path $installerRoot "Output"
-$wixproj       = Join-Path $installerRoot "PBIPortWrapper.Installer.wixproj"
+$wixproj       = Join-Path $installerRoot "PBIRelay.Installer.wixproj"
 
 # 1. Publish the application (single-file, self-contained, win-x64).
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 Write-Host "==> Publishing application to $publishDir" -ForegroundColor Cyan
-dotnet publish (Join-Path $projectRoot "PBIPortWrapper.csproj") `
+dotnet publish (Join-Path $projectRoot "PBIRelay.csproj") `
     -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:DebugType=None -p:DebugSymbols=false `
@@ -36,11 +36,11 @@ dotnet build $wixproj -c Release
 if ($LASTEXITCODE -ne 0) { throw "wix build failed ($LASTEXITCODE)" }
 
 # 3. Stage the MSI to Output\.
-$msi = Get-ChildItem (Join-Path $installerRoot "bin") -Recurse -Filter "PBIPortWrapper.msi" `
+$msi = Get-ChildItem (Join-Path $installerRoot "bin") -Recurse -Filter "PBIRelay.msi" `
         -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $msi) { throw "MSI not found under $installerRoot\bin after build" }
 
 if (-not (Test-Path $outputDir)) { New-Item -ItemType Directory -Path $outputDir | Out-Null }
-$dest = Join-Path $outputDir "PBIPortWrapper.msi"
+$dest = Join-Path $outputDir "PBIRelay.msi"
 Copy-Item $msi.FullName $dest -Force
 Write-Host "==> Installer built: $dest" -ForegroundColor Green

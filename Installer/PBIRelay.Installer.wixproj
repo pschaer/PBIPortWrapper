@@ -1,6 +1,6 @@
 <Project Sdk="WixToolset.Sdk/5.0.0">
   <PropertyGroup>
-    <OutputName>PBIPortWrapper</OutputName>
+    <OutputName>PBIRelay</OutputName>
     <OutputType>Package</OutputType>
     <!-- ICE43/ICE57 are false positives here: they treat the All-Users Start Menu
          shortcut as per-user data, but this is a per-machine (Scope="perMachine")

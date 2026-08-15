@@ -1,6 +1,6 @@
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Decides when an endpoint failure is worth interrupting someone about.

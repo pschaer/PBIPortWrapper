@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     public class PortWatcherService : IDisposable
     {

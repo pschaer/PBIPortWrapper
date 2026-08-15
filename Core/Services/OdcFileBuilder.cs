@@ -1,7 +1,7 @@
 using System.Security;
 using System.Text;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Builds an Office Data Connection (<c>.odc</c>) file for a served model so a

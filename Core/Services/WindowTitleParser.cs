@@ -1,6 +1,6 @@
 using System;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Extracts the model name from a Power BI Desktop window title. Some builds use

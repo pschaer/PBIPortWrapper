@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
-using PBIPortWrapper.Models;
+using PBIRelay.Models;
 
-namespace PBIPortWrapper.Services
+namespace PBIRelay.Services
 {
     /// <summary>
     /// Seam between the serve-session state machine and the live Analysis Services

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using PBIPortWrapper.Models;
-using PBIPortWrapper.Services;
+using PBIRelay.Models;
+using PBIRelay.Services;
 
-namespace PBIPortWrapper.Presenters
+namespace PBIRelay.Presenters
 {
     public class RowDetailsPresenter
     {
