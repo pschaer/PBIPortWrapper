@@ -10,6 +10,16 @@ namespace PBIRelay
     internal static class Program
     {
         /// <summary>
+        /// The app's one logger, so a crash never opens a second lock object on the
+        /// same log.txt. Null until <see cref="SetLogger"/> runs, which happens once
+        /// <c>ApplicationPresenter</c> exists - an exception before then still falls
+        /// back to a fresh instance in <see cref="HandleException"/>.
+        /// </summary>
+        private static ILogger _logger;
+
+        internal static void SetLogger(ILogger logger) => _logger = logger;
+
+        /// <summary>
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
@@ -113,10 +123,11 @@ namespace PBIRelay
                 MessageBoxIcon.Error
             );
 
-                        // Log using LoggerService
+            // Log using the app's shared logger, falling back to a fresh one only if
+            // the crash happened before ApplicationPresenter set it up.
             try
             {
-                var logger = new LoggerService();
+                var logger = _logger ?? new LoggerService();
                 logger.LogError("Global", "Unhandled exception occurred", ex);
             }
             catch

@@ -270,6 +270,13 @@ namespace PBIRelay.Core.Tests
         }
 
         [Fact]
+        public void Verbose_logging_stays_off_by_default()
+        {
+            // Split from LogPayloads in #176 - independently off, same reasoning.
+            Assert.False(new HttpBridgeConfig().VerboseLogging);
+        }
+
+        [Fact]
         public void A_config_written_before_access_logging_existed_loads_with_it_on()
         {
             var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<HttpBridgeConfig>(

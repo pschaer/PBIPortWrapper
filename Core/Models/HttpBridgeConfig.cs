@@ -73,8 +73,22 @@ namespace PBIRelay.Models
         /// <summary>
         /// Write full SOAP request/response payloads to log.txt. Debugging only:
         /// payloads contain query results, and log.txt rotates at 5 MB.
+        ///
+        /// Independent of <see cref="VerboseLogging"/> (#176): this decides whether
+        /// payloads are among the Debug detail, not whether Debug detail is captured
+        /// at all. It still needs Debug-level capture to reach the file, so turning
+        /// it on raises the level itself, same as before - what changed is that
+        /// routing detail can now be turned on without it.
         /// </summary>
         public bool LogPayloads { get; set; } = false;
+
+        /// <summary>
+        /// Capture Debug-level detail (routing, per-request lines) without also asking
+        /// for SOAP payloads. Split from <see cref="LogPayloads"/> in #176, which used
+        /// to be the only way to raise the level - one control doing two jobs: "log
+        /// more" and "log query results too" are different requests.
+        /// </summary>
+        public bool VerboseLogging { get; set; } = false;
 
         /// <summary>
         /// Record one line per request in access.csv: who connected, to which model,

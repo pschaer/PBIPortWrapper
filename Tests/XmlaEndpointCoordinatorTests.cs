@@ -85,9 +85,8 @@ namespace PBIRelay.Core.Tests
         [Fact]
         public void LogPayloads_RaisesAndLowersVerbosity_WithoutRestartingTheListener()
         {
-            // Routing detail is logged at Debug so ~50 lines per Excel session stay out
-            // of the dashboard. LogPayloads is the existing "tell me everything" switch,
-            // so it is what makes them visible - one diagnostic control, not two.
+            // Payloads are logged at Debug, so capturing them alone (#176) still has
+            // to raise the threshold, same as before the split from VerboseLogging.
             var logger = new FakeLogger();
             _config.SetEndpointEnabled(true);
             using var coordinator = new XmlaEndpointCoordinator(_endpoint, _config, logger);
@@ -107,6 +106,53 @@ namespace PBIRelay.Core.Tests
             // anyone, which is the whole reason it is checked before the change test.
             Assert.Equal(1, _endpoint.StartCount);
             Assert.Equal(0, _endpoint.StopCount);
+        }
+
+        [Fact]
+        public void VerboseLogging_RaisesTheThreshold_IndependentlyOfLogPayloads()
+        {
+            // The point of #176: routing detail without also asking for query
+            // results. VerboseLogging alone must be enough to reach Debug.
+            var logger = new FakeLogger();
+            _config.SetEndpointEnabled(true);
+            using var coordinator = new XmlaEndpointCoordinator(_endpoint, _config, logger);
+            coordinator.ApplyConfiguration();
+
+            Assert.Equal(LogLevel.Info, logger.MinimumLevel);
+            Assert.False(_config.Current.HttpBridge.LogPayloads);
+
+            _config.Current.HttpBridge.VerboseLogging = true;
+            _config.Save();
+            Assert.Equal(LogLevel.Debug, logger.MinimumLevel);
+            Assert.False(_config.Current.HttpBridge.LogPayloads);
+
+            _config.Current.HttpBridge.VerboseLogging = false;
+            _config.Save();
+            Assert.Equal(LogLevel.Info, logger.MinimumLevel);
+        }
+
+        [Fact]
+        public void EitherDiagnosticSwitch_KeepsTheThresholdAtDebug_UntilBothAreOff()
+        {
+            // Neither switch owns the threshold exclusively - it stays lowered as
+            // long as either one still wants Debug detail.
+            var logger = new FakeLogger();
+            _config.SetEndpointEnabled(true);
+            using var coordinator = new XmlaEndpointCoordinator(_endpoint, _config, logger);
+            coordinator.ApplyConfiguration();
+
+            _config.Current.HttpBridge.VerboseLogging = true;
+            _config.Current.HttpBridge.LogPayloads = true;
+            _config.Save();
+            Assert.Equal(LogLevel.Debug, logger.MinimumLevel);
+
+            _config.Current.HttpBridge.LogPayloads = false;
+            _config.Save();
+            Assert.Equal(LogLevel.Debug, logger.MinimumLevel); // VerboseLogging still on
+
+            _config.Current.HttpBridge.VerboseLogging = false;
+            _config.Save();
+            Assert.Equal(LogLevel.Info, logger.MinimumLevel); // both off now
         }
 
         // --- Encryption settings (#132) ----------------------------------------------

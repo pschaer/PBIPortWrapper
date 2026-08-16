@@ -103,11 +103,6 @@ namespace PBIRelay.Services
             }
         }
 
-        public void SetMinimumLogLevel(LogLevel level)
-        {
-            _minimumLevel = level;
-        }
-
         public string GetLogFilePath()
         {
             return _logFilePath;
@@ -205,11 +200,5 @@ namespace PBIRelay.Services
 
         public static void LogError(this ILogger logger, string category, string message, Exception exception = null)
             => logger.Log(LogLevel.Error, category, message, exception);
-
-        public static void LogConnectionInfo(this ILogger logger, string remoteEndPoint, int proxyPort, int targetPort, string modelName)
-            => logger.LogInfo("Proxy", $"Connection from {remoteEndPoint} | Proxy Port: {proxyPort} -> Target Port: {targetPort} | Model: {modelName}");
-
-        public static void LogConnectionClosed(this ILogger logger, string remoteEndPoint, int proxyPort, int activeConnections)
-            => logger.LogInfo("Proxy", $"Connection closed from {remoteEndPoint} | Proxy Port: {proxyPort} | Active: {activeConnections}");
     }
 }

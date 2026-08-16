@@ -41,12 +41,14 @@ namespace PBIRelay
             ConfigureGridColumns();
             
             // App icon (optional); loader keeps this form under its size limit.
-            var appIcon = AppIconLoader.TryLoad();
-            if (appIcon != null)
-            {
-                this.Icon = appIcon;
-                this.notifyIcon.Icon = appIcon;
-            }
+            // Window and tray are loaded separately so each gets the frame drawn at
+            // its own size - one shared icon left Windows rescaling a single 256px
+            // image down to 24 and 16, which smeared the bars together.
+            var windowIcon = AppIconLoader.TryLoad();
+            if (windowIcon != null) this.Icon = windowIcon;
+
+            var trayIcon = AppIconLoader.TryLoadSmall();
+            if (trayIcon != null) this.notifyIcon.Icon = trayIcon;
 
             // #87: when started with --silent (auto-start at login), begin
             // minimized so the form never flashes before hiding to the tray.
@@ -68,7 +70,8 @@ namespace PBIRelay
         private void InitializeApplication()
         {
             _appPresenter = new ApplicationPresenter(dataGridViewInstances);
-            
+            Program.SetLogger(_appPresenter.LoggerService);
+
             // Bind Presenters for local usage
             _gridPresenter = _appPresenter.GridPresenter;
 

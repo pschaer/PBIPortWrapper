@@ -128,8 +128,8 @@ namespace PBIRelay.Services
                 HttpBridgeConfig config = CurrentConfig();
                 if (config == null) return;
 
-                // Before the change check: LogPayloads is not a listener setting, so
-                // toggling it alone must still take effect.
+                // Before the change check: neither diagnostic setting is a listener
+                // setting, so toggling either alone must still take effect.
                 ApplyDiagnosticLevel(config);
 
                 ListenerSettings wanted = ListenerSettings.From(config);
@@ -169,19 +169,23 @@ namespace PBIRelay.Services
 
         /// <summary>
         /// Routing detail and SOAP payloads are logged at Debug, so they stay out of a
-        /// dashboard that would otherwise take ~50 lines per Excel session. LogPayloads
-        /// is the existing "tell me everything" switch, so it is what lowers the
-        /// threshold — one diagnostic control rather than two.
+        /// dashboard that would otherwise take ~50 lines per Excel session. Either
+        /// <see cref="HttpBridgeConfig.VerboseLogging"/> or
+        /// <see cref="HttpBridgeConfig.LogPayloads"/> asks for that detail (#176):
+        /// they are separate questions - "log more" versus "include query results" -
+        /// but both need the same threshold lowered to be seen at all, so wanting
+        /// either is enough.
         /// </summary>
         private void ApplyDiagnosticLevel(HttpBridgeConfig config)
         {
             if (!(_logger is ILogLevelSwitch levelSwitch)) return;
 
-            LogLevel wanted = config.LogPayloads ? LogLevel.Debug : LogLevel.Info;
+            bool wantsDebug = config.VerboseLogging || config.LogPayloads;
+            LogLevel wanted = wantsDebug ? LogLevel.Debug : LogLevel.Info;
             if (levelSwitch.MinimumLevel == wanted) return;
 
             levelSwitch.MinimumLevel = wanted;
-            _logger.LogInfo("XmlaEndpoint", $"Diagnostic logging {(config.LogPayloads ? "on" : "off")}.");
+            _logger.LogInfo("XmlaEndpoint", $"Diagnostic logging {(wantsDebug ? "on" : "off")}.");
         }
 
         private EndpointStatus Snapshot(HttpBridgeConfig config, string error) =>

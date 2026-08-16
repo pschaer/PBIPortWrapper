@@ -10,9 +10,9 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 
 		<!-- Version Information -->
-		<Version>1.0.0</Version>
-		<AssemblyVersion>1.0.0.0</AssemblyVersion>
-		<FileVersion>1.0.0.0</FileVersion>
+		<Version>1.0.1</Version>
+		<AssemblyVersion>1.0.1.0</AssemblyVersion>
+		<FileVersion>1.0.1.0</FileVersion>
 
 		<!-- Product Information -->
 		<Product>PBIRelay</Product>
@@ -38,6 +38,11 @@
 		<None Update="Resources\app_icon.png">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<!-- ApplicationIcon above only sets the icon Explorer shows for the .exe. The
+		     window and tray load this same file at runtime so Windows can pick a
+		     hand-sized frame per surface; embedded rather than copied so a single-file
+		     publish cannot leave it behind. -->
+		<EmbeddedResource Include="app.ico" LogicalName="PBIRelay.app.ico" />
 	</ItemGroup>
 
 	<Target Name="EnforceCodeSizeLimits" AfterTargets="Build">

@@ -177,7 +177,7 @@ Everything is still stored in `%APPDATA%\PBIRelay\config.json` and can be edited
 there instead:
 
 ```json
-"HttpBridge": { "Enabled": true, "Port": 55555, "AuthMode": 2, "Hostname": "", "LogPayloads": false }
+"HttpBridge": { "Enabled": true, "Port": 55555, "AuthMode": 2, "Hostname": "", "LogPayloads": false, "VerboseLogging": false }
 ```
 
 `AuthMode` is stored as an int, like `OnDetection`: `0` = Windows, `1` = Anonymous,
@@ -187,8 +187,11 @@ there instead:
 not the one users should type (a DNS name, or the right NIC on a multi-homed machine).
 Empty means detect it.
 
-`LogPayloads` writes full SOAP request and response bodies — including query results —
-to `log.txt`. Debugging only.
+`VerboseLogging` and `LogPayloads` both switch `log.txt` from Info to Debug detail
+(#176) — routing lines for the former, full SOAP request/response bodies, including
+query results, for the latter. Independent switches: turn on `VerboseLogging` to see
+per-request routing without query results in the file, or `LogPayloads` for both.
+Debugging only.
 
 ### Read-only models (#129)
 

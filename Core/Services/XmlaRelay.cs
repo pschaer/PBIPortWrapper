@@ -117,8 +117,8 @@ namespace PBIRelay.Services
             {
                 // Debug, not Info: a single Excel session is ~50 requests, and the
                 // dashboard mirrors this log. Successful routing is only interesting
-                // while diagnosing, which LogPayloads turns on. Everything that went
-                // wrong below stays at Warning.
+                // while diagnosing, which VerboseLogging (or LogPayloads) turns on.
+                // Everything that went wrong below stays at Warning.
                 _logger?.LogDebug("XmlaEndpoint",
                     $"{verb} {ExtractRequestType(doc) ?? "command"} on '{model.Alias}' -> localhost:{model.Port}");
 

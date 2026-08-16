@@ -4,6 +4,40 @@ All notable changes to PBIRelay will be documented in this file. Releases up to 
 including 0.9.0 shipped under the project's former name, PBI Port Wrapper, and their
 entries below say so deliberately.
 
+## [1.0.1] - 2026-08-16
+
+A maintenance release: the three logging defects that had been sitting in #176 since the
+three-stream redesign was dropped, and a taskbar icon that had been quietly rendering
+from the wrong source. Nothing about serving or the endpoint changes.
+
+### Added
+- **`VerboseLogging`** — raises `log.txt` to Debug detail (per-request routing) *without*
+  writing SOAP payloads. Off by default, and like `LogPayloads` it lives only in
+  `%APPDATA%\PBIRelay\config.json`. Until now the two were the same switch, so seeing which
+  requests arrived meant also writing every query result to disk (#176).
+
+### Fixed
+- **The taskbar and tray icons looked smeared**, the leftmost chart bar losing its
+  separation from its neighbour. The app was building its icon from the 256×256
+  `app_icon.png` via `Bitmap.GetHicon()`, which yields an icon with a single frame —
+  so Windows had nothing to choose from and rescaled that one image down to 24px for
+  the taskbar and 16px for the tray, blurring the gaps between the bars until they
+  merged. `app.ico` already carried correct hand-sized frames but was only the
+  Explorer icon for the `.exe`, never loaded at runtime. It is now embedded, and each
+  surface asks for the size it draws at. **The artwork is unchanged** (#195).
+- **The global exception handler built its own logger.** An unhandled exception constructed
+  a second `LoggerService` — a second lock object writing the same `log.txt`. It now uses
+  the one the application already owns, falling back to a fresh instance only for a crash
+  that happens before that one exists (#176).
+- **`LogPayloads` doubled as the log-level switch**, so payload capture and verbosity could
+  not be chosen independently. They are now separate settings; either one still lowers the
+  threshold, because both need Debug-level capture to be recorded at all (#176).
+
+### Removed
+- `LogConnectionInfo` and `LogConnectionClosed`, logging helpers describing the forwarding
+  proxy retired in v0.8 (#126), with no callers since. And `SetMinimumLogLevel`, an unused
+  duplicate of the level setter the endpoint coordinator actually uses (#176).
+
 ## [1.0.0] - 2026-08-16
 
 No new scope over 0.9.0. The project got a name that describes it, and the HTTPS design
